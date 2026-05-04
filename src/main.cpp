@@ -1,5 +1,4 @@
 #include <FastLED.h>
-#include <Ultrasonic.h>
 #include <RunningMedian.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -13,11 +12,8 @@ const char *password = "Kennwort1!"; // Hotspot Password (min 8 chars)
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-// Rechte Seite Sensor: Echo 12, Trig 13
-// Linke Seite Sensor: Echo 10, Trig 11
-
 #define NUM_LEDS 10
-#define RESET_BUTTON_PIN 32
+#define RESET_BUTTON_PIN 33
 
 // --- Calibration ---
 #define INITIAL_AVERAGE_MEASURE_COUNT 50   // Samples taken at startup
@@ -32,8 +28,24 @@ AsyncWebSocket ws("/ws");
 CRGB goals1[NUM_LEDS] = {};
 CRGB goals2[NUM_LEDS] = {};
 
-Ultrasonic goal2Sensor(12, 13, 10000UL);
-Ultrasonic goal1Sensor(27, 14, 10000UL);
+#define ECHO2_PIN 13
+#define TRIG2_PIN 12
+#define ECHO1_PIN 14
+#define TRIG1_PIN 27
+
+float getFastDistance(int trigPin, int echoPin)
+{
+  // Single, fast ping to avoid missing fast-moving balls
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Timeout of 4000us max (~68 cm max distance). This keeps the loop extremely fast.
+  long duration = pulseIn(echoPin, HIGH, 4000UL);
+  return (duration == 0) ? 0 : (duration * 0.0343 / 2.0);
+}
 
 volatile uint8_t team1 = 0;
 volatile uint8_t team2 = 0;
@@ -42,9 +54,6 @@ volatile bool resetRequested = false;
 
 float idleDistance1 = 0;
 float idleDistance2 = 0;
-
-volatile uint8_t hits1 = 0;
-volatile uint8_t hits2 = 0;
 
 volatile unsigned long cooldownUntil1 = 0;
 volatile unsigned long cooldownUntil2 = 0;
@@ -143,11 +152,6 @@ void StartupAnimationLEDS()
   updateLEDSGoals();
 }
 
-void ResetGoals()
-{
-  resetRequested = true;
-}
-
 // ─────────────────────────────────────────────
 // Setup
 // ─────────────────────────────────────────────
@@ -176,15 +180,20 @@ void setup()
   FastLED.addLeds<WS2812B, 25, GRB>(goals2, NUM_LEDS);
   FastLED.show();
 
+  pinMode(TRIG1_PIN, OUTPUT);
+  pinMode(ECHO1_PIN, INPUT);
+  pinMode(TRIG2_PIN, OUTPUT);
+  pinMode(ECHO2_PIN, INPUT);
+
   RunningMedian median1(INITIAL_AVERAGE_MEASURE_COUNT);
   RunningMedian median2(INITIAL_AVERAGE_MEASURE_COUNT);
 
   for (int i = 0; i < INITIAL_AVERAGE_MEASURE_COUNT; i++)
   {
-    unsigned int r1 = goal1Sensor.read(CM);
+    float r1 = getFastDistance(TRIG1_PIN, ECHO1_PIN);
     if (r1 > 0)
       median1.add(r1);
-    unsigned int r2 = goal2Sensor.read(CM);
+    float r2 = getFastDistance(TRIG2_PIN, ECHO2_PIN);
     if (r2 > 0)
       median2.add(r2);
   }
@@ -197,7 +206,7 @@ void setup()
   Serial.println(idleDistance2);
 
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(RESET_BUTTON_PIN), ResetGoals, FALLING);
+
   StartupAnimationLEDS();
 }
 
@@ -205,53 +214,59 @@ void loop()
 {
   ws.cleanupClients(); // Keep WebSocket memory clean
 
-  if (resetRequested)
+  if (digitalRead(RESET_BUTTON_PIN) == LOW || resetRequested)
   {
     team1 = 0;
     team2 = 0;
-    hits1 = 0;
-    hits2 = 0;
-    cooldownUntil1 = 0;
-    cooldownUntil2 = 0;
-    StartupAnimationLEDS();
     notifyClients(); // Broadcast the 0:0 reset to the webpage
+    StartupAnimationLEDS();
     resetRequested = false;
     return;
   }
 
   unsigned long now = millis();
-  unsigned int d1 = goal1Sensor.read(CM);
-  unsigned int d2 = goal2Sensor.read(CM);
+  float d1 = getFastDistance(TRIG1_PIN, ECHO1_PIN);
+  float d2 = getFastDistance(TRIG2_PIN, ECHO2_PIN);
 
   // ── Sensor 1 (Team 1 - Blue) ──────────────────────
   if (now >= cooldownUntil1)
   {
-    if (d1 > 0 && d1 < (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+    if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
     {
-      team1++;
-      cooldownUntil1 = now + GOAL_COOLDOWN_MS;
-      Serial.print("Goal: BLUE | Score: ");
-      Serial.print(team1);
-      Serial.print(" : ");
-      Serial.println(team2);
-      notifyClients(); // Broadcast to web interface
-      celebrateGoal(goals1);
+      delay(8); // very brief delay
+      float d1_verify = getFastDistance(TRIG1_PIN, ECHO1_PIN);
+      if (d1_verify > 0 && d1_verify <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      {
+        team1++;
+        cooldownUntil1 = now + GOAL_COOLDOWN_MS;
+        Serial.print("Goal: BLUE | Score: ");
+        Serial.print(team1);
+        Serial.print(" : ");
+        Serial.println(team2);
+        notifyClients(); // Broadcast to web interface
+        celebrateGoal(goals1);
+      }
     }
   }
 
   // ── Sensor 2 (Team 2 - Red) ──────────────────────
   if (now >= cooldownUntil2)
   {
-    if (d2 > 0 && d2 < (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+    if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
     {
-      team2++;
-      cooldownUntil2 = now + GOAL_COOLDOWN_MS;
-      Serial.print("Goal: RED | Score: ");
-      Serial.print(team1);
-      Serial.print(" : ");
-      Serial.println(team2);
-      notifyClients(); // Broadcast to web interface
-      celebrateGoal(goals2);
+      delay(8); // very brief delay
+      float d2_verify = getFastDistance(TRIG2_PIN, ECHO2_PIN);
+      if (d2_verify > 0 && d2_verify <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      {
+        team2++;
+        cooldownUntil2 = now + GOAL_COOLDOWN_MS;
+        Serial.print("Goal: RED | Score: ");
+        Serial.print(team1);
+        Serial.print(" : ");
+        Serial.println(team2);
+        notifyClients(); // Broadcast to web interface
+        celebrateGoal(goals2);
+      }
     }
   }
 }
