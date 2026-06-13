@@ -29,7 +29,7 @@ FastAccelStepper *stepper = NULL;
 #define ACTIVATION_DISTANCE_FROM_AVERAGE 0.3 // cm below idle = "object present" (increased to filter out noise)
 
 // After a goal is registered, ignore that sensor for this many ms.
-#define GOAL_COOLDOWN_MS 2000
+#define GOAL_COOLDOWN_MS 500
 
 // During the cooldown the celebration animation runs.
 #define CELEBRATE_FRAME_MS 80
@@ -138,11 +138,12 @@ void celebrateGoal(CRGB *strip)
     for (int i = 0; i < NUM_LEDS; i++)
       strip[i] = (flash % 2 == 0) ? CRGB::White : CRGB::Black;
 
-    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    if (timingMutex != NULL && xSemaphoreTake(timingMutex, portMAX_DELAY))
     {
       FastLED.show();
       xSemaphoreGive(timingMutex);
     }
+
     delay(CELEBRATE_FRAME_MS);
   }
   updateLEDSGoals();
@@ -150,19 +151,30 @@ void celebrateGoal(CRGB *strip)
 
 void StartupAnimationLEDS()
 {
-  for (int i = 0; i < NUM_LEDS; i++)
+  for (int x = 0; x < 2; x++)
   {
-    goals1[i] = CRGB::Green;
-    goals2[i] = CRGB::Green;
-    FastLED.show();
-    delay(50);
-  }
-  for (int i = 0; i < NUM_LEDS; i++)
-  {
-    goals1[i] = CRGB::Black;
-    goals2[i] = CRGB::Black;
-    FastLED.show();
-    delay(50);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      goals1[i] = CRGB::Green;
+      goals2[i] = CRGB::Green;
+      if (timingMutex != NULL && xSemaphoreTake(timingMutex, portMAX_DELAY))
+      {
+        FastLED.show();
+        xSemaphoreGive(timingMutex);
+      }
+      delay(25);
+    }
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      goals1[i] = CRGB::Black;
+      goals2[i] = CRGB::Black;
+      if (timingMutex != NULL && xSemaphoreTake(timingMutex, portMAX_DELAY))
+      {
+        FastLED.show();
+        xSemaphoreGive(timingMutex);
+      }
+      delay(25);
+    }
   }
   updateLEDSGoals();
 }
@@ -218,7 +230,7 @@ void SensorLoop(void *pvParameters)
     // ── Sensor 1 (Team 1 - Blue) ──────────────────────
     if (now >= cooldownUntil1)
     {
-      if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE) && team1 < NUM_LEDS)
       {
         team1++;
         cooldownUntil1 = now + GOAL_COOLDOWN_MS;
@@ -229,7 +241,7 @@ void SensorLoop(void *pvParameters)
     // ── Sensor 2 (Team 2 - Red) ──────────────────────
     if (now >= cooldownUntil2)
     {
-      if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE) && team2 < NUM_LEDS)
       {
         team2++;
         cooldownUntil2 = now + GOAL_COOLDOWN_MS;
