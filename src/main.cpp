@@ -25,11 +25,10 @@ FastAccelStepper *stepper = NULL;
 #define RESET_BUTTON_PIN 33
 
 // --- Calibration ---
-#define INITIAL_AVERAGE_MEASURE_COUNT 100    // Samples taken at startup
 #define ACTIVATION_DISTANCE_FROM_AVERAGE 0.3 // cm below idle = "object present" (increased to filter out noise)
 
 // After a goal is registered, ignore that sensor for this many ms.
-#define GOAL_COOLDOWN_MS 500
+#define GOAL_COOLDOWN_MS 2000
 
 // During the cooldown the celebration animation runs.
 #define CELEBRATE_FRAME_MS 80
