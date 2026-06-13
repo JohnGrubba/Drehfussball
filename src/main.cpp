@@ -25,8 +25,8 @@ FastAccelStepper *stepper = NULL;
 #define RESET_BUTTON_PIN 33
 
 // --- Calibration ---
-#define INITIAL_AVERAGE_MEASURE_COUNT 50   // Samples taken at startup
-#define ACTIVATION_DISTANCE_FROM_AVERAGE 1 // cm below idle = "object present"
+#define INITIAL_AVERAGE_MEASURE_COUNT 100    // Samples taken at startup
+#define ACTIVATION_DISTANCE_FROM_AVERAGE 0.3 // cm below idle = "object present" (increased to filter out noise)
 
 // After a goal is registered, ignore that sensor for this many ms.
 #define GOAL_COOLDOWN_MS 2000
@@ -42,31 +42,23 @@ CRGB goals2[NUM_LEDS] = {};
 #define ECHO1_PIN 14
 #define TRIG1_PIN 27
 
-float getFastDistance(int trigPin, int echoPin)
-{
-  // Single, fast ping to avoid missing fast-moving balls
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-
-  // Timeout of 4000us max (~68 cm max distance). This keeps the loop extremely
-  // fast.
-  long duration = pulseIn(echoPin, HIGH, 4000UL);
-  return (duration == 0) ? 0 : (duration * 0.0343 / 2.0);
-}
-
 volatile uint8_t team1 = 0;
 volatile uint8_t team2 = 0;
 
 volatile bool resetRequested = false;
 
-float idleDistance1 = 0;
-float idleDistance2 = 0;
+float idleDistance1 = 3.3;
+float idleDistance2 = 3.3;
+
+TaskHandle_t SensorTask;
 
 volatile unsigned long cooldownUntil1 = 0;
 volatile unsigned long cooldownUntil2 = 0;
+
+volatile bool goal1Scored = false;
+volatile bool goal2Scored = false;
+
+SemaphoreHandle_t timingMutex;
 
 // ─────────────────────────────────────────────
 // Helpers & WebSockets
@@ -86,7 +78,12 @@ void updateLEDSGoals()
     goals1[9 - i] = (team1 > i) ? CRGB::Blue : CRGB::Black;
     goals2[i] = (team2 > i) ? CRGB::Red : CRGB::Black;
   }
-  FastLED.show();
+
+  if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+  {
+    FastLED.show();
+    xSemaphoreGive(timingMutex);
+  }
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
@@ -140,7 +137,12 @@ void celebrateGoal(CRGB *strip)
   {
     for (int i = 0; i < NUM_LEDS; i++)
       strip[i] = (flash % 2 == 0) ? CRGB::White : CRGB::Black;
-    FastLED.show();
+
+    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    {
+      FastLED.show();
+      xSemaphoreGive(timingMutex);
+    }
     delay(CELEBRATE_FRAME_MS);
   }
   updateLEDSGoals();
@@ -169,6 +171,77 @@ void StartupAnimationLEDS()
 // Setup
 // ─────────────────────────────────────────────
 
+void SensorLoop(void *pvParameters)
+{
+  for (;;)
+  {
+    // 1. Trigger the sensor (10us pulse)
+    digitalWrite(TRIG1_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG1_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG1_PIN, LOW);
+
+    // Turn off FreeRTOS task preemption so we aren't interrupted by other tasks
+    // while we measure the pulse width. Hardware interrupts (like Wi-Fi) can still fire
+    // occasionally, but won't crash the WDT.
+    unsigned long distance1 = 0;
+    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    {
+      vTaskSuspendAll();
+      distance1 = pulseIn(ECHO1_PIN, HIGH, 3000UL);
+      xTaskResumeAll();
+      xSemaphoreGive(timingMutex);
+    }
+    float d1 = (distance1 == 0) ? 0 : (distance1 * 0.0343 / 2.0);
+
+    // Trigger second sensor with a slight delay to avoid crosstalk
+    delayMicroseconds(100);
+    digitalWrite(TRIG2_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG2_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG2_PIN, LOW);
+
+    unsigned long distance2 = 0;
+    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    {
+      vTaskSuspendAll();
+      distance2 = pulseIn(ECHO2_PIN, HIGH, 3000UL);
+      xTaskResumeAll();
+      xSemaphoreGive(timingMutex);
+    }
+    float d2 = (distance2 == 0) ? 0 : (distance2 * 0.0343 / 2.0);
+
+    // 3. Process data here
+    unsigned long now = millis();
+    // ── Sensor 1 (Team 1 - Blue) ──────────────────────
+    if (now >= cooldownUntil1)
+    {
+      if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      {
+        team1++;
+        cooldownUntil1 = now + GOAL_COOLDOWN_MS;
+        goal1Scored = true;
+      }
+    }
+
+    // ── Sensor 2 (Team 2 - Red) ──────────────────────
+    if (now >= cooldownUntil2)
+    {
+      if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
+      {
+        team2++;
+        cooldownUntil2 = now + GOAL_COOLDOWN_MS;
+        goal2Scored = true;
+      }
+    }
+
+    // Yield control to prevent watchdog starvation on Core 1
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+}
+
 void setup()
 {
   delay(1000);
@@ -183,7 +256,7 @@ void setup()
     stepper->setEnablePin(enablePinStepper, true);
     // Stepper should always block (even if not moving)
     stepper->setAutoEnable(true);
-    stepper->setDelayToDisable(5000);
+    stepper->setDelayToDisable(10000);
 
     stepper->setSpeedInHz(30000);
     stepper->setAcceleration(5000);
@@ -218,27 +291,23 @@ void setup()
   pinMode(TRIG2_PIN, OUTPUT);
   pinMode(ECHO2_PIN, INPUT);
 
-  RunningMedian median1(INITIAL_AVERAGE_MEASURE_COUNT);
-  RunningMedian median2(INITIAL_AVERAGE_MEASURE_COUNT);
-
-  for (int i = 0; i < INITIAL_AVERAGE_MEASURE_COUNT; i++)
-  {
-    float r1 = getFastDistance(TRIG1_PIN, ECHO1_PIN);
-    if (r1 > 0)
-      median1.add(r1);
-    float r2 = getFastDistance(TRIG2_PIN, ECHO2_PIN);
-    if (r2 > 0)
-      median2.add(r2);
-  }
-  idleDistance1 = median1.getAverage();
-  idleDistance2 = median2.getAverage();
-
   Serial.print("Calibration 1: ");
   Serial.println(idleDistance1);
   Serial.print("Calibration 2: ");
   Serial.println(idleDistance2);
 
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
+  timingMutex = xSemaphoreCreateMutex();
+
+  xTaskCreatePinnedToCore(
+      SensorLoop,   // Function to implement the task
+      "SensorTask", // Name of the task
+      10000,        // Stack size in words
+      NULL,         // Task input parameter
+      10,           // Priority of the task (High priority)
+      &SensorTask,  // Task handle
+      1             // Core ID (Core 1 is isolated from Core 0 Wi-Fi)
+  );
 
   StartupAnimationLEDS();
 }
@@ -246,6 +315,28 @@ void setup()
 void loop()
 {
   ws.cleanupClients(); // Keep WebSocket memory clean
+
+  if (goal1Scored)
+  {
+    goal1Scored = false;
+    Serial.print("Goal: BLUE | Score: ");
+    Serial.print(team1);
+    Serial.print(" : ");
+    Serial.println(team2);
+    notifyClients(); // Broadcast to web interface
+    celebrateGoal(goals1);
+  }
+
+  if (goal2Scored)
+  {
+    goal2Scored = false;
+    Serial.print("Goal: RED | Score: ");
+    Serial.print(team1);
+    Serial.print(" : ");
+    Serial.println(team2);
+    notifyClients(); // Broadcast to web interface
+    celebrateGoal(goals2);
+  }
 
   if (digitalRead(RESET_BUTTON_PIN) == LOW || resetRequested)
   {
@@ -260,53 +351,5 @@ void loop()
     delay(1000); // Keep the return open for 2 seconds
     stepper->move(-1200);
     return;
-  }
-
-  unsigned long now = millis();
-  float d1 = getFastDistance(TRIG1_PIN, ECHO1_PIN);
-  float d2 = getFastDistance(TRIG2_PIN, ECHO2_PIN);
-
-  // ── Sensor 1 (Team 1 - Blue) ──────────────────────
-  if (now >= cooldownUntil1)
-  {
-    if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
-    {
-      delay(8); // very brief delay
-      float d1_verify = getFastDistance(TRIG1_PIN, ECHO1_PIN);
-      if (d1_verify > 0 &&
-          d1_verify <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE))
-      {
-        team1++;
-        cooldownUntil1 = now + GOAL_COOLDOWN_MS;
-        Serial.print("Goal: BLUE | Score: ");
-        Serial.print(team1);
-        Serial.print(" : ");
-        Serial.println(team2);
-        notifyClients(); // Broadcast to web interface
-        celebrateGoal(goals1);
-      }
-    }
-  }
-
-  // ── Sensor 2 (Team 2 - Red) ──────────────────────
-  if (now >= cooldownUntil2)
-  {
-    if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
-    {
-      delay(8); // very brief delay
-      float d2_verify = getFastDistance(TRIG2_PIN, ECHO2_PIN);
-      if (d2_verify > 0 &&
-          d2_verify <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE))
-      {
-        team2++;
-        cooldownUntil2 = now + GOAL_COOLDOWN_MS;
-        Serial.print("Goal: RED | Score: ");
-        Serial.print(team1);
-        Serial.print(" : ");
-        Serial.println(team2);
-        notifyClients(); // Broadcast to web interface
-        celebrateGoal(goals2);
-      }
-    }
   }
 }
