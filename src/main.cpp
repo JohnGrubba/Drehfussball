@@ -26,6 +26,7 @@ FastAccelStepper *stepper = NULL;
 
 // --- Calibration ---
 #define ACTIVATION_DISTANCE_FROM_AVERAGE 0.4 // cm below idle = "object present" (increased to filter out noise)
+#define CALIBRATION_MODE false               // If true, the system will print sensor readings to the console without registering goals. Use this mode to determine good values for the idleDistance variables below.
 
 // After a goal is registered, ignore that sensor for this many ms.
 #define GOAL_COOLDOWN_MS 2500
@@ -46,8 +47,8 @@ volatile uint8_t team2 = 0;
 
 volatile bool resetRequested = false;
 
-float idleDistance1 = 3.3;
-float idleDistance2 = 3.3;
+float idleDistance1 = 3.5;
+float idleDistance2 = 3.6;
 
 TaskHandle_t SensorTask;
 
@@ -200,14 +201,13 @@ void SensorLoop(void *pvParameters)
     if (xSemaphoreTake(timingMutex, portMAX_DELAY))
     {
       vTaskSuspendAll();
-      distance1 = pulseIn(ECHO1_PIN, HIGH, 3000UL);
+      distance1 = pulseIn(ECHO1_PIN, HIGH, 4000UL);
       xTaskResumeAll();
       xSemaphoreGive(timingMutex);
     }
     float d1 = (distance1 == 0) ? 0 : (distance1 * 0.0343 / 2.0);
 
     // Trigger second sensor with a slight delay to avoid crosstalk
-    delayMicroseconds(100);
     digitalWrite(TRIG2_PIN, LOW);
     delayMicroseconds(2);
     digitalWrite(TRIG2_PIN, HIGH);
@@ -218,7 +218,7 @@ void SensorLoop(void *pvParameters)
     if (xSemaphoreTake(timingMutex, portMAX_DELAY))
     {
       vTaskSuspendAll();
-      distance2 = pulseIn(ECHO2_PIN, HIGH, 3000UL);
+      distance2 = pulseIn(ECHO2_PIN, HIGH, 4000UL);
       xTaskResumeAll();
       xSemaphoreGive(timingMutex);
     }
@@ -250,6 +250,15 @@ void SensorLoop(void *pvParameters)
         Serial.print("GOAL 2 - Sensor Reading: ");
         Serial.println(d2);
       }
+    }
+
+    if (CALIBRATION_MODE)
+    {
+      Serial.print("Sensor 1: ");
+      Serial.print(d1);
+      Serial.print(" cm | Sensor 2: ");
+      Serial.print(d2);
+      Serial.println(" cm");
     }
 
     // Yield control to prevent watchdog starvation on Core 1
