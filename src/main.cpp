@@ -25,13 +25,13 @@ FastAccelStepper *stepper = NULL;
 #define RESET_BUTTON_PIN 33
 
 // --- Calibration ---
-#define ACTIVATION_DISTANCE_FROM_AVERAGE 0.3 // cm below idle = "object present" (increased to filter out noise)
+#define ACTIVATION_DISTANCE_FROM_AVERAGE 0.4 // cm below idle = "object present" (increased to filter out noise)
 
 // After a goal is registered, ignore that sensor for this many ms.
-#define GOAL_COOLDOWN_MS 2000
+#define GOAL_COOLDOWN_MS 2500
 
 // During the cooldown the celebration animation runs.
-#define CELEBRATE_FRAME_MS 80
+#define CELEBRATE_FRAME_MS 40
 
 CRGB goals1[NUM_LEDS] = {};
 CRGB goals2[NUM_LEDS] = {};
@@ -132,7 +132,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 
 void celebrateGoal(CRGB *strip)
 {
-  for (int flash = 0; flash < 4; flash++)
+  for (int flash = 0; flash < 8; flash++)
   {
     for (int i = 0; i < NUM_LEDS; i++)
       strip[i] = (flash % 2 == 0) ? CRGB::White : CRGB::Black;
@@ -234,6 +234,8 @@ void SensorLoop(void *pvParameters)
         team1++;
         cooldownUntil1 = now + GOAL_COOLDOWN_MS;
         goal1Scored = true;
+        Serial.print("GOAL 1 - Sensor Reading: ");
+        Serial.println(d1);
       }
     }
 
@@ -245,6 +247,8 @@ void SensorLoop(void *pvParameters)
         team2++;
         cooldownUntil2 = now + GOAL_COOLDOWN_MS;
         goal2Scored = true;
+        Serial.print("GOAL 2 - Sensor Reading: ");
+        Serial.println(d2);
       }
     }
 
@@ -295,6 +299,7 @@ void setup()
 
   FastLED.addLeds<WS2812B, 26, GRB>(goals1, NUM_LEDS);
   FastLED.addLeds<WS2812B, 25, GRB>(goals2, NUM_LEDS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
   FastLED.show();
 
   pinMode(TRIG1_PIN, OUTPUT);
