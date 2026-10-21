@@ -87,6 +87,29 @@ pio run -t upload          # Firmware mit neuem Dashboard flashen
 - **Tastatur:** `1`/`2` Tor, `R` Reset, `T` TV, `F` Vollbild.
 - **Offline:** keine externen Fonts, Icons oder CDNs — läuft im ESP32-AP.
 
+## Gruppenphase / Spielreihenfolge
+
+„Jeder gegen jeden“ wird nicht mehr in Eintragungsreihenfolge abgearbeitet,
+sondern mit einem randomisierten, ausbalancierten **Round-Robin** (Circle-Method)
+geplant:
+
+- Teams werden vor dem Planen gemischt. Das erste Spiel ist dadurch zufällig.
+- Jeder **Spieltag** enthält jedes Team genau einmal. Bei ungerader Teamzahl
+  hat pro Spieltag ein Team ein Freilos; die Freilose rotieren, sodass jede
+  Mannschaft gleich oft Pause hat.
+- Die Reihenfolge der Spieltage und die Reihenfolge der Spiele innerhalb eines
+  Spieltags werden gemischt.
+- Innerhalb eines Spieltags bleibt die relative Reihenfolge des vorherigen
+  Spieltags erhalten (wer früh dran war, spielt wieder früh). Dadurch sind die
+  Pausen zwischen den eigenen Spielen ungefähr gleich groß.
+- Im Turnierkopf gibt es **„Spielplan mischen“**, solange noch kein Spiel
+  gespielt wurde. Damit lässt sich auch ein bereits angelegtes, noch nicht
+  gestartetes Gruppenturnier neu mischen.
+
+Der Spielplan wird im Turnier unter „Spielplan“ nach Spieltagen gruppiert
+angezeigt; die Freilose stehen unter dem jeweiligen Spieltag. Die Sidebar
+„Nächste Spiele“ folgt derselben Reihenfolge.
+
 ## Verbindung zum ESP32
 
 Das Dashboard verbindet sich mit `ws://<host>/ws`. Auf dem ESP32 ist das

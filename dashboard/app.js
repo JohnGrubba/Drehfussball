@@ -170,20 +170,96 @@
     return `Runde ${r + 1}`;
   }
 
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Randomized, rest-balanced round robin.
+  //
+  // Circle method: if the team count is even, every "Spieltag" contains every
+  // team exactly once.  With an odd team count a dummy team is added, so one
+  // real team has a bye per Spieltag; the bye rotates through all teams.
+  //
+  // Teams, the order of the Spieltage, the order of matches inside a Spieltag
+  // and home/away are randomized.  Inside a Spieltag, teams that played late
+  // on the previous Spieltag are scheduled earlier, which balances the breaks.
+  function generateSeedingSchedule(t) {
+    t.matches = [];
+
+    const teams = shuffle([...t.teams]);
+    const slots = teams.length % 2 === 0 ? [...teams] : [...teams, null];
+    const n = slots.length;
+    const roundsCount = n - 1;
+
+    let rotation = slots.slice();
+    const rounds = [];
+
+    for (let r = 0; r < roundsCount; r++) {
+      const day = [];
+      for (let i = 0; i < n / 2; i++) {
+        const a = rotation[i];
+        const b = rotation[n - 1 - i];
+        if (a !== null && b !== null) day.push([a, b]);
+      }
+      rounds.push(day);
+
+      // circle method: keep the first slot fixed, rotate the rest
+      const fixed = rotation[0];
+      const rest = rotation.slice(1);
+      rest.unshift(rest.pop());
+      rotation = [fixed, ...rest];
+    }
+
+    shuffle(rounds);
+
+    const lastPlayed = new Map(teams.map((team) => [team.id, 0]));
+    let id = 100;
+    let sequence = 0;
+
+    rounds.forEach((day, r) => {
+      if (r === 0) {
+        // first Spieltag: random order (and random first match)
+        shuffle(day);
+      } else {
+        // Keep the relative order of the previous Spieltag: teams that
+        // played early also play early here, teams that played late play
+        // late.  This gives every team a similar break between days.
+        day.sort((x, y) => {
+          const sx = (lastPlayed.get(x[0].id) || 0) + (lastPlayed.get(x[1].id) || 0);
+          const sy = (lastPlayed.get(y[0].id) || 0) + (lastPlayed.get(y[1].id) || 0);
+          return sx - sy;
+        });
+      }
+
+      day.forEach(([a, b], i) => {
+        const flip = Math.random() < 0.5;
+        t.matches.push({
+          id: id++,
+          t1: flip ? b.id : a.id,
+          t2: flip ? a.id : b.id,
+          s1: 0, s2: 0, played: false,
+          round: 'seeding',
+          roundIndex: r,
+          matchIndex: i,
+          roundName: `Spieltag ${r + 1}`,
+        });
+        sequence += 1;
+        lastPlayed.set(a.id, sequence);
+        lastPlayed.set(b.id, sequence);
+      });
+    });
+  }
+
   function generateMatches(t) {
     t.matches = [];
     let id = 100;
 
     if (t.mode === 'seeding') {
-      for (let i = 0; i < t.teams.length; i++) {
-        for (let j = i + 1; j < t.teams.length; j++) {
-          t.matches.push({
-            id: id++, t1: t.teams[i].id, t2: t.teams[j].id,
-            s1: 0, s2: 0, played: false,
-            round: 'seeding', roundName: 'Jeder gegen jeden',
-          });
-        }
-      }
+      generateSeedingSchedule(t);
       return;
     }
 
@@ -447,9 +523,36 @@
     });
     html += '</tbody></table>';
 
-    const sorted = [...t.matches].sort((a, b) => a.id - b.id);
-    html += '<div class="matches-grid-title">Spiele</div><div class="matches-grid">' +
-      sorted.map((m) => matchCard(t, m)).join('') + '</div>';
+    const sorted = [...t.matches].sort((a, b) =>
+      (a.roundIndex ?? 0) - (b.roundIndex ?? 0) ||
+      (a.matchIndex ?? 0) - (b.matchIndex ?? 0) ||
+      a.id - b.id);
+
+    const groups = new Map();
+    for (const m of sorted) {
+      const r = m.roundIndex ?? 0;
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(m);
+    }
+
+    html += '<div class="matches-grid-title">Spielplan</div><div class="schedule-days">';
+    for (const [r, matches] of groups) {
+      const title = matches[0].roundName || (r === 0 ? 'Spiele' : `Spieltag ${r + 1}`);
+      const used = new Set();
+      for (const m of matches) {
+        if (m.t1 !== null) used.add(m.t1);
+        if (m.t2 !== null) used.add(m.t2);
+      }
+      const byes = t.teams.filter((team) => !used.has(team.id));
+      const byeText = byes.length
+        ? `<div class="matchday-bye">Freilos: ${byes.map((x) => escapeHtml(x.name)).join(', ')}</div>`
+        : '';
+      const legacy = matches.every((m) => m.roundIndex === undefined);
+      html += `<div class="matchday${legacy ? ' legacy' : ''}"><h4>${escapeHtml(title)}</h4>${byeText}` +
+        `<div class="matches-grid">${matches.map((m) => matchCard(t, m, false)).join('')}</div>` +
+        `</div>`;
+    }
+    html += '</div>';
     return html;
   }
 
@@ -508,6 +611,7 @@
     const champion = $('#champion');
 
     if (!t) {
+      $('#btn-shuffle-schedule').classList.add('hidden');
       $('#t-title').textContent = 'Kein Turnier';
       $('#t-meta').textContent = 'Erstelle ein Turnier im Setup.';
       champion.classList.add('hidden');
@@ -519,6 +623,10 @@
       renderSidebar(null);
       return;
     }
+
+    const canShuffle = t.mode === 'seeding' && state.activeMatchId === null &&
+      !t.matches.some((m) => m.played);
+    $('#btn-shuffle-schedule').classList.toggle('hidden', !canShuffle);
 
     const { played, total } = playedCount(t);
     $('#t-title').textContent = t.name;
@@ -905,6 +1013,27 @@
     return t;
   }
 
+  async function shuffleSchedule() {
+    const t = state.activeTournament;
+    if (!t || t.mode !== 'seeding') return;
+    if (state.activeMatchId !== null) {
+      toast('Bitte zuerst das laufende Spiel speichern oder zurücksetzen.', 'error');
+      return;
+    }
+    if (t.matches.some((m) => m.played)) {
+      toast('Der Spielplan kann nur vor dem ersten Spiel neu gemischt werden.', 'error');
+      return;
+    }
+    if (!confirm('Spielplan neu mischen? Die Paarungen bleiben gleich, nur die Reihenfolge ändert sich.')) {
+      return;
+    }
+    generateSeedingSchedule(t);
+    await persist(t);
+    state.activeTournament = state.tournaments.find((x) => x.id === t.id) || t;
+    renderAll();
+    toast('Spielplan neu gemischt.');
+  }
+
   function playMatch(id) {
     if (state.tv) return;
     const t = state.activeTournament;
@@ -968,6 +1097,7 @@
   // ── bindings ────────────────────────────────────────────────────────────
   function bind() {
     $('#btn-save-match').addEventListener('click', saveMatchData);
+    $('#btn-shuffle-schedule').addEventListener('click', shuffleSchedule);
     $('#btn-generate').addEventListener('click', createTournament);
     $('#btn-setup-demo').addEventListener('click', () => seedDemo(true));
     $('#btn-new-tournament').addEventListener('click', () => {

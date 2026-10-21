@@ -561,9 +561,34 @@ kbd {
 .standings .leader { background: rgba(62, 166, 255, .07); }
 
 .matches-grid-title { margin-top: clamp(18px, 2.4vh, 32px); }
+.schedule-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.matchday { margin-top: 0; }
+.matchday .matches-grid { grid-template-columns: 1fr; gap: 10px; }
+.matchday.legacy { grid-column: 1 / -1; }
+.matchday.legacy .matches-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.matchday .match { padding: 8px 10px; }
+.matchday .team-row { font-size: clamp(.72rem, .8vw, .95rem); padding: 4px 0; }
+.matchday-bye {
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: .72rem;
+}
+.matchday h4 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
 .matches-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(220px, 18vw, 320px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(clamp(220px, 18vw, 320px), 1fr));
   gap: 12px;
 }
 

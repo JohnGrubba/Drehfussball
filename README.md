@@ -16,6 +16,8 @@ python3 server.py
 - **Live / Operator:** <http://localhost:8000/>
 - **TV-/Turnieransicht:** <http://localhost:8000/tv> (oder `?tv=1`)
 - **Demo-Turnier:** <http://localhost:8000/?demo=1&tv=1>
+- **Gruppenphase:** zufälliger, ausbalancierter Spielplan mit Spieltagen und
+  rotierenden Freilosen („Spielplan mischen“ vor dem ersten Spiel).
 
 ![TV-Ansicht](dashboard/dashboard_tv.png)
 
