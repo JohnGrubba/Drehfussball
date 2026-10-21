@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070b10">
+  <title>Tourney Master</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-ball">⚽</div>
+        <div class="brand-text">
+          <h1>TOURNEY<span>MASTER</span></h1>
+          <div class="brand-sub" id="brand-sub">Casual Match</div>
+        </div>
+      </div>
+
+      <div class="live-mini" id="live-mini">
+        <div class="mini-side blue">
+          <span class="mini-name" id="mini-t1">Blau</span>
+          <span class="mini-score" id="mini-s1">0</span>
+        </div>
+        <span class="mini-colon">:</span>
+        <div class="mini-side red">
+          <span class="mini-score" id="mini-s2">0</span>
+          <span class="mini-name" id="mini-t2">Rot</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active" data-view="live">Live</button>
+        <button class="nav-btn" data-view="tournament">Turnier</button>
+        <button class="nav-btn" data-view="setup">Setup</button>
+        <span class="nav-sep"></span>
+        <button class="icon-btn" id="btn-tv" title="TV-Modus (T)">TV</button>
+        <button class="icon-btn" id="btn-fullscreen" title="Vollbild (F)">⛶</button>
+        <span class="conn connecting" id="conn" title="Verbindung">●</span>
+      </nav>
+    </header>
+
+    <main class="main">
+      <!-- ───────────────────────── LIVE ───────────────────────── -->
+      <section class="view view-live active" id="view-live">
+        <div class="live-stage">
+          <article class="team-panel blue" id="panel-1">
+            <div class="team-kicker">BLAU</div>
+            <h2 class="team-title" id="live-name1">Team Blue</h2>
+            <div class="score" id="score1">0</div>
+            <div class="operator-controls">
+              <button class="score-btn sub" data-cmd="t1_sub" aria-label="Blau minus">−1</button>
+              <button class="score-btn add" data-cmd="t1_add" aria-label="Blau plus">+1</button>
+            </div>
+          </article>
+
+          <div class="live-center">
+            <div class="match-status" id="match-status">CASUAL MATCH</div>
+            <div class="vs">VS</div>
+            <div class="center-actions">
+              <button class="btn primary hidden" id="btn-save-match">Spiel speichern &amp; weiter</button>
+              <button class="btn warn operator-only" data-cmd="reset">Reset Scoreboard</button>
+              <button class="btn ghost operator-only" id="btn-open-tournament">Turnierübersicht</button>
+            </div>
+            <div class="hint operator-only">
+              <kbd>1</kbd>/<kbd>2</kbd> Tor · <kbd>R</kbd> Reset · <kbd>T</kbd> TV
+            </div>
+          </div>
+
+          <article class="team-panel red" id="panel-2">
+            <div class="team-kicker">ROT</div>
+            <h2 class="team-title" id="live-name2">Team Red</h2>
+            <div class="score" id="score2">0</div>
+            <div class="operator-controls">
+              <button class="score-btn sub" data-cmd="t2_sub" aria-label="Rot minus">−1</button>
+              <button class="score-btn add" data-cmd="t2_add" aria-label="Rot plus">+1</button>
+            </div>
+          </article>
+        </div>
+        <div class="goal-overlay" id="goal-overlay">TOR!</div>
+      </section>
+
+      <!-- ────────────────────── TOURNAMENT ─────────────────────── -->
+      <section class="view view-tournament" id="view-tournament">
+        <div class="tournament-head">
+          <div class="tournament-heading">
+            <h2 id="t-title">Kein Turnier</h2>
+            <div class="t-meta" id="t-meta">Erstelle ein Turnier im Setup.</div>
+            <div class="champion hidden" id="champion"></div>
+          </div>
+          <div class="tournament-actions">
+            <button class="btn ghost" id="btn-back-live" data-view="live">Live</button>
+            <button class="btn ghost operator-only" id="btn-edit-tournament" data-view="setup">Setup</button>
+          </div>
+        </div>
+
+        <div class="tournament-body">
+          <div class="bracket-wrap" id="bracket-wrap">
+            <div class="bracket" id="bracket"></div>
+            <div class="standings hidden" id="standings"></div>
+            <div class="empty-state hidden" id="empty-tournament">
+              <div class="empty-icon">🏆</div>
+              <h3>Noch kein Turnier</h3>
+              <p>Lege im Setup ein Turnier an oder lade das Demo-Turnier.</p>
+              <button class="btn primary" data-view="setup">Zum Setup</button>
+            </div>
+          </div>
+
+          <aside class="sidebar">
+            <div class="side-card live-card" id="live-card"></div>
+            <div class="side-card">
+              <div class="side-title">Nächste Spiele</div>
+              <div class="next-list" id="next-matches"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ───────────────────────── SETUP ───────────────────────── -->
+      <section class="view view-setup" id="view-setup">
+        <div class="setup-head">
+          <div>
+            <h2>Setup</h2>
+            <p class="muted">Turniere verwalten und neue erstellen.</p>
+          </div>
+          <div class="setup-actions">
+            <button class="btn ghost" id="btn-setup-demo">Demo-Turnier laden</button>
+            <button class="btn primary" id="btn-new-tournament">+ Neues Turnier</button>
+          </div>
+        </div>
+
+        <div class="setup-grid">
+          <div class="card">
+            <h3>Turniere</h3>
+            <div id="tournament-list" class="tournament-list"></div>
+          </div>
+
+          <div class="card" id="create-card">
+            <h3>Neues Turnier</h3>
+            <label for="t-name">Name</label>
+            <input type="text" id="t-name" placeholder="z. B. Friday Night Foosball Cup" autocomplete="off">
+
+            <label for="t-mode">Modus</label>
+            <select id="t-mode">
+              <option value="elimination">K.-o.-System (Bracket)</option>
+              <option value="seeding">Jeder gegen jeden (Tabelle)</option>
+            </select>
+
+            <label for="t-teams">Teams (kommagetrennt)</label>
+            <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi" autocomplete="off">
+            <p class="fine">Mindestens 2 Teams. Bei K.-o. werden Freilose automatisch verteilt.</p>
+
+            <button class="btn primary big" id="btn-generate">Turnier erstellen</button>
+          </div>
+        </div>
+
+        <div class="setup-foot">
+          <div id="connection-note" class="fine">Verbinde mit dem ESP32 oder starte den lokalen Server.</div>
+          <button class="btn ghost small" id="btn-mock">Demo-Modus (ohne ESP32)</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

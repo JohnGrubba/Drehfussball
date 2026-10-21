@@ -1,0 +1,58 @@
+Reference,Value,Footprint,Description,X_mm,Y_mm,Rotation
+J1,12-24V IN,TerminalBlock.pretty/TerminalBlock_bornier-2_P5.08mm,Screw terminal 12-24 V input,9.00,10.00,0
+F1,FUSE 5x20 3A,Fuse.pretty/Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open,5x20 mm fuse holder,20.00,10.00,0
+D1,SR560,Diode_THT.pretty/D_DO-201_P15.24mm_Horizontal,Reverse polarity protection,60.00,10.00,180
+D2,P6KE33A,Diode_THT.pretty/D_DO-15_P10.16mm_Horizontal,TVS transient protection,70.00,10.00,0
+C2,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,Input HF decoupling,84.00,10.00,0
+C1,470uF/50V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,Input bulk capacitor,94.00,20.00,0
+U1,TSR2-2450,Package_TO_SOT_THT.pretty/TO-220-3_Vertical,5 V 2 A switching regulator,102.00,14.00,0
+C3,470uF/10V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,5 V bulk capacitor,94.00,32.00,0
+C4,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,5 V HF decoupling,103.00,32.00,0
+JP1,5V SEL,Connector_PinHeader_2.54mm.pretty/PinHeader_1x03_P2.54mm_Vertical,"5 V source select: 1-2 internal, 2-3 external",92.00,40.00,90
+J2,5V EXT,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,External 5 V input,102.00,40.00,90
+R1,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Power LED resistor,74.00,28.00,0
+LED1,GREEN,LED_THT.pretty/LED_D5.0mm,Power LED,74.00,34.00,0
+J12,ESP32 J2,Connector_PinSocket_2.54mm.pretty/PinSocket_1x19_P2.54mm_Vertical,ESP32-DevKitC J2 socket,12.00,38.00,90
+J13,ESP32 J3,Connector_PinSocket_2.54mm.pretty/PinSocket_1x19_P2.54mm_Vertical,ESP32-DevKitC J3 socket,12.00,63.40,90
+C5,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,3V3 decoupling,16.00,34.00,0
+J3,A4988 TOP,Connector_PinSocket_2.54mm.pretty/PinSocket_1x08_P2.54mm_Vertical,A4988/DRV8825 left row,86.00,46.00,90
+J4,A4988 BOT,Connector_PinSocket_2.54mm.pretty/PinSocket_1x08_P2.54mm_Vertical,A4988/DRV8825 right row,86.00,61.24,90
+C14,100uF/50V,Capacitor_THT.pretty/CP_Radial_D8.0mm_P3.50mm,Stepper VMOT bulk capacitor,81.00,64.00,0
+C13,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,Stepper VDD decoupling,106.00,70.00,90
+JP3,MS1,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,Microstep MS1 to +5 V,76.00,46.00,90
+JP4,MS2,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,Microstep MS2 to +5 V,76.00,51.00,90
+JP5,MS3,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,Microstep MS3 to +5 V,76.00,56.00,90
+J5,MOTOR,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x04_P3.50mm_Horizontal,Stepper motor 1A 1B 2A 2B,90.00,78.00,0
+U2,74HC14,Package_DIP.pretty/DIP-14_W7.62mm,"Schmitt trigger, inverting",64.00,76.00,0
+J6,S1,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,Goal 1 beam A,10.00,94.00,90
+J7,S2,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,Goal 1 beam B,24.00,94.00,90
+J8,S3,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,Goal 2 beam A,38.00,94.00,90
+J9,S4,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,Goal 2 beam B,52.00,94.00,90
+R2,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S1 pull-up,8.00,87.00,0
+R3,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S2 pull-up,22.00,87.00,0
+R4,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S3 pull-up,36.00,87.00,0
+R5,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S4 pull-up,50.00,87.00,0
+R6,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S1 series,8.00,82.00,0
+R7,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S2 series,22.00,82.00,0
+R8,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S3 series,36.00,82.00,0
+R9,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,S4 series,50.00,82.00,0
+C6,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,S1 filter,18.00,76.00,0
+C7,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,S2 filter,32.00,76.00,0
+C8,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,S3 filter,46.00,76.00,0
+C9,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,S4 filter,54.00,76.00,0
+C11,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,74HC14 decoupling,66.00,64.00,0
+SW1,RESET,Button_Switch_THT.pretty/SW_PUSH_6mm,Reset button,34.00,67.50,0
+R10,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Reset pull-up,44.00,67.50,0
+C10,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,Reset debounce,58.00,69.00,0
+U3,74AHCT125,Package_DIP.pretty/DIP-14_W7.62mm,WS2812 level shifter,78.00,72.00,0
+C12,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,74AHCT125 decoupling,72.00,66.00,0
+R14,330R,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Blue LED data series,80.00,90.00,0
+R15,330R,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Red LED data series,92.00,90.00,0
+J10,LED BLUE,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x03_P3.50mm_Horizontal,WS2812 blue strip,78.00,96.00,0
+J11,LED RED,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x03_P3.50mm_Horizontal,WS2812 red strip,92.00,96.00,0
+C15,1000uF/10V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,LED strip bulk capacitor,68.00,48.00,0
+H1,M3,MountingHole.pretty/MountingHole_3.2mm_M3,Mounting hole,3.00,3.00,0
+H2,M3,MountingHole.pretty/MountingHole_3.2mm_M3,Mounting hole,107.00,3.00,0
+H3,M3,MountingHole.pretty/MountingHole_3.2mm_M3,Mounting hole,3.00,97.00,0
+H4,M3,MountingHole.pretty/MountingHole_3.2mm_M3,Mounting hole,107.00,97.00,0
+JP2,SENSOR VCC,Connector_PinHeader_2.54mm.pretty/PinHeader_1x03_P2.54mm_Vertical,"1-2 = 3V3, 2-3 = 5V",4.00,72.00,90

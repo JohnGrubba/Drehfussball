@@ -1,9 +1,14 @@
 #include <AsyncTCP.h>
+#include <atomic>
 #include <ESPAsyncWebServer.h>
 #include <FastAccelStepper.h>
 #include <FastLED.h>
-#include <RunningMedian.h>
 #include <WiFi.h>
+#include <driver/gpio.h>
+#include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
 #include "site.cpp"
 
@@ -23,51 +28,65 @@ FastAccelStepper *stepper = NULL;
 
 #define NUM_LEDS 10
 #define RESET_BUTTON_PIN 33
-
-// --- Calibration ---
-#define ACTIVATION_DISTANCE_FROM_AVERAGE 0.4 // cm below idle = "object present" (increased to filter out noise)
-#define CALIBRATION_MODE false               // If true, the system will print sensor readings to the console without registering goals. Use this mode to determine good values for the idleDistance variables below.
-
-// After a goal is registered, ignore that sensor for this many ms.
-#define GOAL_COOLDOWN_MS 2500
-
-// During the cooldown the celebration animation runs.
 #define CELEBRATE_FRAME_MS 40
+
+// ─────────────────────────────────────────────
+// IR light barriers (PCB v1.0)
+// ─────────────────────────────────────────────
+// One beam per chute:
+//   Tor 1 (blue) -> J6 / S1 -> GPIO27
+//   Tor 2 (red)  -> J8 / S3 -> GPIO32
+//
+// J7 / S2 and J9 / S4 are spare inputs and are not used by this firmware.
+//
+// The 74HC14 on the board INVERTS the receiver output:
+//   beam free      -> GPIO LOW
+//   beam blocked   -> GPIO HIGH
+//
+// The ball is in a closed chute, so a single beam is enough.  A valid goal is
+// a beam occlusion between MIN_BLOCK_US and MAX_BLOCK_US.  Everything shorter
+// is noise/dirt, everything longer is a stuck ball or a broken sensor.
+#define SENSOR1_PIN 27
+#define SENSOR2_PIN 32
+
+#define MIN_BLOCK_US 2000UL        // 2 ms
+#define MAX_BLOCK_US 500000UL      // 500 ms
+#define GOAL_COOLDOWN_US 1500000UL // 1.5 s per side
+
+// Set to 1 to print every beam edge / duration to Serial.
+#define DEBUG_SENSORS 0
 
 CRGB goals1[NUM_LEDS] = {};
 CRGB goals2[NUM_LEDS] = {};
 
-#define ECHO2_PIN 13
-#define TRIG2_PIN 12
-#define ECHO1_PIN 14
-#define TRIG1_PIN 27
-
-volatile uint8_t team1 = 0;
-volatile uint8_t team2 = 0;
+std::atomic<uint8_t> team1{0};
+std::atomic<uint8_t> team2{0};
 
 volatile bool resetRequested = false;
-
-float idleDistance1 = 3.5;
-float idleDistance2 = 3.6;
-
-TaskHandle_t SensorTask;
-
-volatile unsigned long cooldownUntil1 = 0;
-volatile unsigned long cooldownUntil2 = 0;
-
 volatile bool goal1Scored = false;
 volatile bool goal2Scored = false;
 
 SemaphoreHandle_t timingMutex;
 
 // ─────────────────────────────────────────────
+// Sensor event queue
+// ─────────────────────────────────────────────
+struct BeamEvent
+{
+  uint8_t goal; // 0 = blue, 1 = red
+  bool blocked;
+  uint32_t us;
+};
+
+static QueueHandle_t sensorQueue = nullptr;
+
+// ─────────────────────────────────────────────
 // Helpers & WebSockets
 // ─────────────────────────────────────────────
-
 void notifyClients()
 {
   String json =
-      "{\"team1\":" + String(team1) + ",\"team2\":" + String(team2) + "}";
+      "{\"team1\":" + String(team1.load()) + ",\"team2\":" + String(team2.load()) + "}";
   ws.textAll(json);
 }
 
@@ -75,11 +94,11 @@ void updateLEDSGoals()
 {
   for (int i = 0; i < NUM_LEDS; i++)
   {
-    goals1[9 - i] = (team1 > i) ? CRGB::Blue : CRGB::Black;
-    goals2[i] = (team2 > i) ? CRGB::Red : CRGB::Black;
+    goals1[9 - i] = (team1.load() > i) ? CRGB::Blue : CRGB::Black;
+    goals2[i] = (team2.load() > i) ? CRGB::Red : CRGB::Black;
   }
 
-  if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+  if (timingMutex != NULL && xSemaphoreTake(timingMutex, portMAX_DELAY))
   {
     FastLED.show();
     xSemaphoreGive(timingMutex);
@@ -96,13 +115,13 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
     String message = (char *)data;
 
     if (message == "t1_add")
-      team1++;
-    if (message == "t1_sub" && team1 > 0)
-      team1--;
+      team1.fetch_add(1);
+    if (message == "t1_sub" && team1.load() > 0)
+      team1.fetch_sub(1);
     if (message == "t2_add")
-      team2++;
-    if (message == "t2_sub" && team2 > 0)
-      team2--;
+      team2.fetch_add(1);
+    if (message == "t2_sub" && team2.load() > 0)
+      team2.fetch_sub(1);
 
     if (message == "reset")
     {
@@ -122,7 +141,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
   if (type == WS_EVT_CONNECT)
   {
     // Send current score immediately upon connection
-    client->text("{\"team1\":" + String(team1) + ",\"team2\":" + String(team2) +
+    client->text("{\"team1\":" + String(team1.load()) + ",\"team2\":" + String(team2.load()) +
                  "}");
   }
   else if (type == WS_EVT_DATA)
@@ -180,92 +199,108 @@ void StartupAnimationLEDS()
 }
 
 // ─────────────────────────────────────────────
-// Setup
+// IR sensor ISR + task
 // ─────────────────────────────────────────────
-
-void SensorLoop(void *pvParameters)
+static inline void IRAM_ATTR pushBeamEvent(uint8_t goal, uint8_t pin)
 {
+  BeamEvent ev;
+  ev.goal = goal;
+  ev.blocked = (gpio_get_level((gpio_num_t)pin) != 0); // 74HC14 inverts
+  ev.us = (uint32_t)esp_timer_get_time();
+
+  BaseType_t woken = pdFALSE;
+  xQueueSendFromISR(sensorQueue, &ev, &woken);
+  (void)woken;
+  // The queue wakes sensorTask; an explicit portYIELD_FROM_ISR() is not
+  // required here, the task runs on the next scheduler slot (<= 1 ms).
+}
+
+void IRAM_ATTR isrGoal1() { pushBeamEvent(0, SENSOR1_PIN); }
+void IRAM_ATTR isrGoal2() { pushBeamEvent(1, SENSOR2_PIN); }
+
+static void sensorTask(void *)
+{
+  BeamEvent ev;
+
+  bool blocked[2] = {false, false};
+  uint32_t blockUs[2] = {0, 0};
+  bool cooldownActive[2] = {false, false};
+  uint32_t cooldownUntil[2] = {0, 0};
+
   for (;;)
   {
-    // 1. Trigger the sensor (10us pulse)
-    digitalWrite(TRIG1_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG1_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG1_PIN, LOW);
-
-    // Turn off FreeRTOS task preemption so we aren't interrupted by other tasks
-    // while we measure the pulse width. Hardware interrupts (like Wi-Fi) can still fire
-    // occasionally, but won't crash the WDT.
-    unsigned long distance1 = 0;
-    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    if (xQueueReceive(sensorQueue, &ev, portMAX_DELAY) != pdTRUE)
     {
-      vTaskSuspendAll();
-      distance1 = pulseIn(ECHO1_PIN, HIGH, 4000UL);
-      xTaskResumeAll();
-      xSemaphoreGive(timingMutex);
+      continue;
     }
-    float d1 = (distance1 == 0) ? 0 : (distance1 * 0.0343 / 2.0);
 
-    // Trigger second sensor with a slight delay to avoid crosstalk
-    digitalWrite(TRIG2_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG2_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG2_PIN, LOW);
+    const uint8_t g = ev.goal;
 
-    unsigned long distance2 = 0;
-    if (xSemaphoreTake(timingMutex, portMAX_DELAY))
+    if (ev.blocked)
     {
-      vTaskSuspendAll();
-      distance2 = pulseIn(ECHO2_PIN, HIGH, 4000UL);
-      xTaskResumeAll();
-      xSemaphoreGive(timingMutex);
-    }
-    float d2 = (distance2 == 0) ? 0 : (distance2 * 0.0343 / 2.0);
-
-    // 3. Process data here
-    unsigned long now = millis();
-    // ── Sensor 1 (Team 1 - Blue) ──────────────────────
-    if (now >= cooldownUntil1)
-    {
-      if (d1 > 0 && d1 <= (idleDistance1 - ACTIVATION_DISTANCE_FROM_AVERAGE) && team1 < NUM_LEDS)
+      if (!blocked[g])
       {
-        team1++;
-        cooldownUntil1 = now + GOAL_COOLDOWN_MS;
+        blocked[g] = true;
+        blockUs[g] = ev.us;
+      }
+      continue;
+    }
+
+    if (!blocked[g])
+    {
+      continue;
+    }
+
+    blocked[g] = false;
+    const uint32_t duration = ev.us - blockUs[g];
+    const bool valid = (duration >= MIN_BLOCK_US && duration <= MAX_BLOCK_US);
+    // Wrap-safe cooldown check (works across the 32-bit micros() wrap).
+    const bool ready =
+        !cooldownActive[g] || ((int32_t)(ev.us - cooldownUntil[g]) >= 0);
+
+#if DEBUG_SENSORS
+    Serial.printf("S%u %s %lu us\n", g + 1, (valid && ready) ? "GOAL" : "reject",
+                  (unsigned long)duration);
+#endif
+
+    if (valid && ready)
+    {
+      if (g == 0)
         goal1Scored = true;
-        Serial.print("GOAL 1 - Sensor Reading: ");
-        Serial.println(d1);
-      }
-    }
-
-    // ── Sensor 2 (Team 2 - Red) ──────────────────────
-    if (now >= cooldownUntil2)
-    {
-      if (d2 > 0 && d2 <= (idleDistance2 - ACTIVATION_DISTANCE_FROM_AVERAGE) && team2 < NUM_LEDS)
-      {
-        team2++;
-        cooldownUntil2 = now + GOAL_COOLDOWN_MS;
+      else
         goal2Scored = true;
-        Serial.print("GOAL 2 - Sensor Reading: ");
-        Serial.println(d2);
-      }
+      cooldownActive[g] = true;
+      cooldownUntil[g] = ev.us + GOAL_COOLDOWN_US;
     }
-
-    if (CALIBRATION_MODE)
-    {
-      Serial.print("Sensor 1: ");
-      Serial.print(d1);
-      Serial.print(" cm | Sensor 2: ");
-      Serial.print(d2);
-      Serial.println(" cm");
-    }
-
-    // Yield control to prevent watchdog starvation on Core 1
-    vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
 
+void setupSensors()
+{
+  sensorQueue = xQueueCreate(32, sizeof(BeamEvent));
+  configASSERT(sensorQueue != nullptr);
+
+  // The 74HC14 output is push-pull; no internal pull-up is needed.
+  pinMode(SENSOR1_PIN, INPUT);
+  pinMode(SENSOR2_PIN, INPUT);
+
+  attachInterrupt(digitalPinToInterrupt(SENSOR1_PIN), isrGoal1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(SENSOR2_PIN), isrGoal2, CHANGE);
+
+  xTaskCreatePinnedToCore(
+      sensorTask,   // Function
+      "Sensors",    // Name
+      4096,         // Stack size in words
+      NULL,         // Parameter
+      6,            // Priority
+      NULL,         // Handle
+      1             // Core 1
+  );
+}
+
+// ─────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────
 void setup()
 {
   delay(1000);
@@ -303,6 +338,9 @@ void setup()
   server.addHandler(&ws);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
             { request->send(200, "text/html", index_html); });
+  // Same dashboard, but with TV mode enabled (?tv=1 also works).
+  server.on("/tv", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(200, "text/html", index_html); });
   server.begin();
   Serial.println("Web Server started");
 
@@ -311,28 +349,11 @@ void setup()
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
   FastLED.show();
 
-  pinMode(TRIG1_PIN, OUTPUT);
-  pinMode(ECHO1_PIN, INPUT);
-  pinMode(TRIG2_PIN, OUTPUT);
-  pinMode(ECHO2_PIN, INPUT);
-
-  Serial.print("Calibration 1: ");
-  Serial.println(idleDistance1);
-  Serial.print("Calibration 2: ");
-  Serial.println(idleDistance2);
-
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
   timingMutex = xSemaphoreCreateMutex();
 
-  xTaskCreatePinnedToCore(
-      SensorLoop,   // Function to implement the task
-      "SensorTask", // Name of the task
-      10000,        // Stack size in words
-      NULL,         // Task input parameter
-      10,           // Priority of the task (High priority)
-      &SensorTask,  // Task handle
-      1             // Core ID (Core 1 is isolated from Core 0 Wi-Fi)
-  );
+  // --- Start IR goal detection ---
+  setupSensors();
 
   StartupAnimationLEDS();
 }
@@ -344,10 +365,11 @@ void loop()
   if (goal1Scored)
   {
     goal1Scored = false;
+    team1.fetch_add(1);
     Serial.print("Goal: BLUE | Score: ");
-    Serial.print(team1);
+    Serial.print(team1.load());
     Serial.print(" : ");
-    Serial.println(team2);
+    Serial.println(team2.load());
     notifyClients(); // Broadcast to web interface
     celebrateGoal(goals1);
   }
@@ -355,10 +377,11 @@ void loop()
   if (goal2Scored)
   {
     goal2Scored = false;
+    team2.fetch_add(1);
     Serial.print("Goal: RED | Score: ");
-    Serial.print(team1);
+    Serial.print(team1.load());
     Serial.print(" : ");
-    Serial.println(team2);
+    Serial.println(team2.load());
     notifyClients(); // Broadcast to web interface
     celebrateGoal(goals2);
   }
@@ -366,15 +389,21 @@ void loop()
   if (digitalRead(RESET_BUTTON_PIN) == LOW || resetRequested)
   {
     // Open Ball Return
-    stepper->move(1200);
-    team1 = 0;
-    team2 = 0;
+    if (stepper)
+      stepper->move(1200);
+    goal1Scored = false;
+    goal2Scored = false;
+    team1.store(0);
+    team2.store(0);
     notifyClients(); // Broadcast the 0:0 reset to the webpage
     StartupAnimationLEDS();
     resetRequested = false;
     Serial.println("Game reset!");
-    delay(1000); // Keep the return open for 2 seconds
-    stepper->move(-1200);
+    delay(1000); // Keep the return open for 1 second
+    goal1Scored = false;
+    goal2Scored = false;
+    if (stepper)
+      stepper->move(-1200);
     return;
   }
 }

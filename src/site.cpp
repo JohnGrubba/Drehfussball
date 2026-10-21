@@ -1,529 +1,2088 @@
 #include <Arduino.h>
 
-// ─────────────────────────────────────────────
-// Web UI HTML / CSS / JS (Stored in Flash)
-// ─────────────────────────────────────────────
 const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Foosball Tournament Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070b10">
+  <title>Tourney Master</title>
   <style>
-    :root { 
-      --bg: #121212; --card: #1e1e1e; --primary: #339af0; --primary-hover: #228be6;
-      --accent: #ff6b6b; --accent-hover: #fa5252; --text: #e9ecef; --text-muted: #adb5bd;
-      --border: #343a40; --live-glow: rgba(51, 154, 240, 0.6);
-    }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-    h1, h2, h3 { text-align: center; margin-top: 10px; margin-bottom: 20px; font-weight: 600; }
-    h1 { font-size: 2.5rem; letter-spacing: 1px; color: var(--primary); }
-    
-    .nav { display: flex; gap: 15px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
-    button { padding: 12px 20px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; color: white; background: #495057; transition: all 0.2s; font-weight: bold; }
-    button.active, button:hover { background: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    
-    .card { background: var(--card); padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.4); max-width: 1200px; margin: 0 auto; margin-bottom: 30px; border: 1px solid var(--border); }
-    .hidden { display: none !important; }
-    input, select { padding: 12px; margin: 10px 0 20px; width: 100%; box-sizing: border-box; background: #2b2b2b; border: 1px solid var(--border); color: white; border-radius: 6px; font-size: 1rem; }
-    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(51,154,240,0.25); }
-    label { font-weight: 600; color: var(--text-muted); }
+/* =========================================================================
+   Tourney Master — large-screen dashboard
+   ========================================================================= */
 
-    /* Scoreboard Live Match */
-    .scoreboard { display: flex; justify-content: space-around; margin: 30px 0; align-items: center; }
-    .team { width: 40%; text-align: center; background: #252525; padding: 20px; border-radius: 10px; border: 1px solid var(--border); }
-    .score { font-size: 6rem; margin: 10px 0; font-weight: bold; text-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-    .blue-bg { color: var(--primary); font-size: 2rem; }
-    .red-bg { color: var(--accent); font-size: 2rem; }
-    .btn-group { display: flex; justify-content: space-between; gap: 15px; margin-top: 20px; }
-    .btn-add { background-color: #2b8a3e; flex: 1; font-size: 2rem; border-radius: 8px; }
-    .btn-sub { background-color: #c92a2a; flex: 1; font-size: 2rem; border-radius: 8px; }
-    .btn-add:hover { background-color: #38d9a9; }
-    .btn-sub:hover { background-color: #ff8787; }
+:root {
+  --bg: #070b10;
+  --bg-2: #0b1119;
+  --panel: #0f1620;
+  --panel-2: #141e2a;
+  --panel-3: #1a2634;
+  --border: #22303f;
+  --text: #e9f0f7;
+  --muted: #8b9bb0;
+  --blue: #3ea6ff;
+  --blue-2: #1c7ed6;
+  --red: #ff5c5c;
+  --red-2: #e03131;
+  --green: #37b24d;
+  --amber: #f59f00;
+  --gold: #ffd43b;
+  --radius: 20px;
+  --shadow: 0 24px 70px rgba(0, 0, 0, .45);
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 
-    /* Full Bracket View */
-    .bracket-container { overflow-x: auto; padding: 20px 0; display: flex; justify-content: center; width: 100%; }
-    .bracket { display: flex; gap: 40px; }
-    .round { display: flex; flex-direction: column; justify-content: space-around; min-width: 200px; gap: 20px; position: relative; }
-    
-    .match { background: #2b2b2b; border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid var(--border); transition: all 0.2s; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    .match:hover { border-color: var(--primary); transform: scale(1.02); }
-    
-    /* Live Match Animation */
-    @keyframes pulse-border {
-      0% { box-shadow: 0 0 0 0 var(--live-glow); border-color: var(--primary); }
-      70% { box-shadow: 0 0 0 15px rgba(51, 154, 240, 0); border-color: var(--text); }
-      100% { box-shadow: 0 0 0 0 rgba(51, 154, 240, 0); border-color: var(--primary); }
-    }
-    .match.live { animation: pulse-border 2s infinite; border-width: 2px; }
-    .match.live .match-header { background: var(--primary); color: white; font-weight: bold; }
-    
-    .match-header { font-size: 0.8rem; text-transform: uppercase; padding: 5px; text-align: center; background: #1a1a1a; color: var(--text-muted); border-bottom: 1px solid var(--border); }
-    .match-team { display: flex; justify-content: space-between; padding: 10px 15px; font-size: 1.1rem; border-bottom: 1px solid var(--border); }
-    .match-team:last-child { border-bottom: none; }
-    .match-team.winner { font-weight: bold; color: #fff; background: rgba(51,154,240,0.1); }
-    .score-box { background: #1a1a1a; padding: 2px 10px; border-radius: 4px; min-width: 20px; text-align: center; }
-    .score-t1, .score-t2 { font-weight: bold; }
-    
-    /* Connectors Placeholder */
-    .round-title { text-align: center; font-size: 1.2rem; margin-bottom: 15px; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+* { box-sizing: border-box; }
 
-    /* Tables */
-    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; background: #252525; border-radius: 8px; overflow: hidden; }
-    th { background: #1a1a1a; color: var(--primary); text-transform: uppercase; font-size: 0.9rem; padding: 15px; }
-    td { padding: 15px; border-bottom: 1px solid var(--border); font-size: 1.1rem; }
-    tr:last-child td { border-bottom: none; }
-    
-    .list-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #252525; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); transition: all 0.2s;}
-    .list-item:hover { border-color: var(--primary); }
-    .list-item strong { font-size: 1.2rem; }
-    .big-btn { width: 100%; padding: 15px; font-size: 1.2rem; margin-top: 10px; border-radius: 8px; }
+html, body { height: 100%; }
 
-    /* Mobile Responsiveness */
-    @media (max-width: 768px) {
-      body { padding: 10px; }
-      h1 { font-size: 1.8rem; }
-      .card { padding: 15px; margin-bottom: 20px; }
-      .scoreboard { flex-direction: column; gap: 10px; margin: 15px 0; }
-      .team { width: 100%; padding: 15px; box-sizing: border-box; }
-      .score { font-size: 4.5rem; margin: 5px 0; }
-      .blue-bg, .red-bg { font-size: 1.5rem; }
-      .btn-add, .btn-sub { font-size: 1.5rem; padding: 10px; }
-      .scoreboard > b { font-size: 2rem !important; margin: 5px 0; display: block; text-align: center; }
-      .action-buttons { flex-direction: column; gap: 10px !important; }
-      .nav { gap: 8px; margin-bottom: 20px; }
-      .nav button { padding: 10px; font-size: 0.9rem; flex: 1 1 30%; }
-      .round { min-width: 160px; }
-      .list-item { flex-direction: column; align-items: flex-start; gap: 10px; }
-      .list-item > div:last-child { width: 100%; display: flex; justify-content: space-between; }
-      .list-item > div:last-child button { flex: 1; }
-      .match { font-size: 0.9rem; }
-      .match-team { font-size: 1rem; padding: 8px 10px; }
-      #b-title { font-size: 1.8rem; margin-bottom: 20px; }
-    }
-  </style>
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 800px at 12% -10%, rgba(62, 166, 255, .16), transparent 60%),
+    radial-gradient(1000px 700px at 92% 110%, rgba(255, 92, 92, .13), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  z-index: 0;
+}
+
+button, input, select { font: inherit; }
+button { color: inherit; }
+.hidden { display: none !important; }
+
+/* ── app shell ─────────────────────────────────────────────────────────── */
+
+.app {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px clamp(16px, 2vw, 30px);
+  background: rgba(7, 11, 16, .72);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+}
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.brand-ball {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--blue-2), #0b4f8a);
+  box-shadow: 0 8px 24px rgba(62, 166, 255, .3);
+  font-size: 24px;
+  flex: 0 0 auto;
+}
+
+.brand-text { min-width: 0; }
+.brand h1 {
+  margin: 0;
+  font-size: clamp(1rem, 1.35vw, 1.35rem);
+  letter-spacing: .12em;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.brand h1 span { color: var(--blue); }
+.brand-sub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: clamp(.7rem, .8vw, .85rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42vw;
+}
+
+.live-mini {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.2vw, 18px);
+  padding: 8px clamp(12px, 1.4vw, 20px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 30, 42, .72);
+  font-variant-numeric: tabular-nums;
+}
+.mini-side { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.mini-side.blue .mini-name { color: var(--blue); }
+.mini-side.red .mini-name { color: var(--red); }
+.mini-name {
+  font-size: clamp(.72rem, .85vw, .95rem);
+  font-weight: 700;
+  max-width: 14vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-score { font-size: clamp(1.1rem, 1.6vw, 1.6rem); font-weight: 800; line-height: 1; }
+.mini-colon { color: var(--muted); font-weight: 800; }
+
+.nav { display: flex; align-items: center; gap: 8px; }
+.nav-btn, .icon-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: clamp(.75rem, .85vw, .9rem);
+  transition: background .15s, color .15s, border-color .15s, transform .15s;
+}
+.nav-btn:hover, .icon-btn:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
+.nav-btn.active {
+  color: #fff;
+  background: linear-gradient(145deg, var(--blue-2), #0b5ca8);
+  box-shadow: 0 6px 18px rgba(28, 126, 214, .28);
+}
+.icon-btn {
+  border-color: var(--border);
+  font-family: var(--mono);
+  font-size: .8rem;
+  letter-spacing: .04em;
+}
+.icon-btn.active { color: #001018; background: var(--blue); border-color: var(--blue); }
+.nav-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+.conn {
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 4px;
+  color: var(--amber);
+  transition: color .2s, text-shadow .2s;
+}
+.conn.online { color: var(--green); text-shadow: 0 0 12px rgba(55, 178, 77, .8); }
+.conn.offline { color: var(--red); text-shadow: 0 0 12px rgba(255, 92, 92, .7); }
+.conn.demo { color: #b197fc; text-shadow: 0 0 12px rgba(177, 151, 252, .7); }
+
+/* ── views ─────────────────────────────────────────────────────────────── */
+
+.main { position: relative; flex: 1; min-height: 0; }
+.view { display: none; height: 100%; }
+.view.active { display: flex; }
+
+/* ── live ──────────────────────────────────────────────────────────────── */
+
+.view-live {
+  position: relative;
+  padding: clamp(14px, 2.2vw, 44px);
+}
+
+.live-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, .55fr) minmax(0, 1fr);
+  gap: clamp(14px, 2.2vw, 42px);
+}
+
+.team-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.5vh, 24px);
+  min-height: 0;
+  padding: clamp(18px, 2.4vw, 42px);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: clamp(18px, 2vw, 34px);
+  background:
+    linear-gradient(165deg, var(--team-soft, rgba(255, 255, 255, .04)), transparent 48%),
+    linear-gradient(180deg, var(--panel-3), var(--panel));
+  overflow: hidden;
+  overflow: clip;
+  overflow-anchor: none;
+  isolation: isolate;
+  box-shadow: var(--shadow);
+}
+.team-panel::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -45% -20%;
+  height: 70%;
+  background: radial-gradient(circle at 50% 50%, var(--team-glow), transparent 65%);
+  opacity: .55;
+  z-index: -1;
+}
+.team-panel.blue {
+  --team: var(--blue);
+  --team-soft: rgba(62, 166, 255, .16);
+  --team-glow: rgba(62, 166, 255, .28);
+  border-color: rgba(62, 166, 255, .22);
+}
+.team-panel.red {
+  --team: var(--red);
+  --team-soft: rgba(255, 92, 92, .15);
+  --team-glow: rgba(255, 92, 92, .26);
+  border-color: rgba(255, 92, 92, .22);
+}
+
+.team-kicker {
+  color: var(--team);
+  font-size: clamp(.62rem, .78vw, .85rem);
+  font-weight: 800;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+}
+.team-title {
+  margin: 0;
+  max-width: 100%;
+  text-align: center;
+  font-size: clamp(1.45rem, 2.7vw, 3.6rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.score {
+  color: var(--team);
+  font-size: clamp(6.5rem, 17vw, 20rem);
+  line-height: .82;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.04em;
+  text-shadow: 0 0 70px var(--team-glow);
+  user-select: none;
+}
+
+.operator-controls { display: flex; gap: clamp(10px, 1vw, 18px); }
+.score-btn {
+  width: clamp(58px, 6.4vw, 104px);
+  height: clamp(58px, 6.4vw, 104px);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .07);
+  color: #fff;
+  font-size: clamp(1.4rem, 2vw, 2.4rem);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .12s, background .15s, box-shadow .15s;
+}
+.score-btn:hover { transform: translateY(-2px); background: rgba(255, 255, 255, .14); }
+.score-btn:active { transform: translateY(0) scale(.96); }
+.score-btn.add { background: var(--team); color: #06121d; border-color: transparent; box-shadow: 0 10px 28px var(--team-glow); }
+.score-btn.sub { color: var(--team); }
+
+.live-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 1.8vh, 24px);
+  min-width: 0;
+  text-align: center;
+}
+.match-status {
+  color: var(--muted);
+  font-size: clamp(.65rem, .8vw, .9rem);
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  max-width: 100%;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.vs {
+  font-size: clamp(2.4rem, 5vw, 6rem);
+  font-weight: 900;
+  color: rgba(255, 255, 255, .18);
+  letter-spacing: .04em;
+  line-height: 1;
+}
+.center-actions { display: flex; flex-direction: column; gap: 10px; width: min(100%, 260px); }
+.hint { color: var(--muted); font-size: clamp(.65rem, .72vw, .78rem); line-height: 1.6; }
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: .82em;
+}
+
+/* buttons */
+.btn {
+  border: 1px solid transparent;
+  border-radius: 11px;
+  padding: 11px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--panel-3);
+  color: var(--text);
+  transition: transform .12s, filter .15s, background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+.btn:active { transform: translateY(0); }
+.btn.primary { background: linear-gradient(145deg, var(--blue-2), #0b5ca8); color: #fff; box-shadow: 0 8px 24px rgba(28, 126, 214, .28); }
+.btn.warn { background: rgba(245, 159, 0, .14); color: var(--amber); border-color: rgba(245, 159, 0, .3); }
+.btn.ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+.btn.ghost:hover { color: var(--text); border-color: #3b4d61; }
+.btn.big { padding: 14px 18px; font-size: 1rem; }
+.btn.small { padding: 7px 11px; font-size: .78rem; }
+
+/* goal flash */
+.team-panel.goal { animation: teamGoal 1.05s ease; }
+@keyframes teamGoal {
+  0% { box-shadow: 0 0 0 0 var(--team-glow); }
+  25% { box-shadow: 0 0 0 12px transparent, 0 0 90px 18px var(--team-glow); }
+  100% { box-shadow: var(--shadow); }
+}
+.goal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(5rem, 18vw, 22rem);
+  font-weight: 900;
+  letter-spacing: .02em;
+  color: #fff;
+  background: rgba(3, 7, 12, .55);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+}
+.goal-overlay.show { animation: goalPop 1.15s cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes goalPop {
+  0% { opacity: 0; transform: scale(.6); }
+  18% { opacity: 1; transform: scale(1.04); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+/* ── tournament ────────────────────────────────────────────────────────── */
+
+.view-tournament {
+  flex-direction: column;
+  gap: clamp(10px, 1.4vh, 18px);
+  padding: clamp(12px, 1.8vw, 30px);
+}
+
+.tournament-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+.tournament-heading { min-width: 0; }
+.tournament-head h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.1vw, 2.5rem);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.t-meta { margin-top: 5px; color: var(--muted); font-size: clamp(.78rem, .95vw, 1.05rem); }
+.champion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 212, 59, .35);
+  border-radius: 999px;
+  background: rgba(255, 212, 59, .1);
+  color: var(--gold);
+  font-weight: 800;
+  font-size: clamp(.78rem, .95vw, 1rem);
+}
+.tournament-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+
+.tournament-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(290px, 24vw, 460px);
+  gap: clamp(10px, 1.4vw, 20px);
+}
+
+.bracket-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(20, 30, 42, .72), rgba(10, 16, 24, .72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+.bracket {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(14px, 1.8vw, 34px);
+  min-height: 100%;
+  padding: clamp(12px, 1.4vw, 22px);
+}
+.round {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: clamp(170px, 12.5vw, 280px);
+  min-height: 0;
+}
+.round-title {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 4px 2px 10px;
+  color: var(--muted);
+  font-size: clamp(.6rem, .73vw, .8rem);
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, rgba(13, 20, 29, .96), rgba(13, 20, 29, .82) 70%, transparent);
+}
+.round-matches {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: clamp(8px, 1.1vh, 18px);
+  min-height: 0;
+}
+
+.match {
+  position: relative;
+  padding: clamp(7px, .85vw, 13px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  cursor: pointer;
+  transition: border-color .15s, transform .15s, box-shadow .15s, opacity .15s;
+  overflow: hidden;
+}
+.match:hover { border-color: rgba(62, 166, 255, .55); transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0, 0, 0, .28); }
+.match.finished { opacity: .86; }
+.match.tbd { opacity: .58; cursor: default; }
+.match.tbd:hover { border-color: var(--border); transform: none; box-shadow: none; }
+.match.live {
+  border-color: rgba(62, 166, 255, .85);
+  box-shadow: 0 0 0 1px rgba(62, 166, 255, .35), 0 0 34px rgba(62, 166, 255, .22);
+  animation: livePulse 2.2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(62, 166, 255, .35), 0 0 24px rgba(62, 166, 255, .16); }
+  50% { box-shadow: 0 0 0 1px rgba(62, 166, 255, .8), 0 0 42px rgba(62, 166, 255, .3); }
+}
+.match-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+  color: var(--muted);
+  font-size: clamp(.56rem, .66vw, .72rem);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.match-header .live-tag { color: var(--blue); }
+.match-header .win-tag { color: var(--green); }
+.team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: clamp(4px, .55vh, 7px) 0;
+  font-size: clamp(.78rem, .95vw, 1.08rem);
+  color: var(--muted);
+}
+.team-row + .team-row { border-top: 1px solid rgba(255, 255, 255, .045); }
+.team-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row .score-box {
+  flex: 0 0 auto;
+  min-width: 2.1em;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .3);
+  color: var(--text);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.team-row.winner { color: var(--text); font-weight: 800; }
+.team-row.winner .score-box { color: var(--green); background: rgba(55, 178, 77, .13); }
+.team-row.loser .score-box { color: var(--muted); }
+.match.live .team-row .score-box { color: var(--blue); }
+.tbd-text { color: var(--muted); font-style: italic; }
+
+/* standings / round robin */
+.standings { padding: clamp(12px, 1.6vw, 24px); min-height: 100%; }
+.standings h3, .matches-grid-title {
+  margin: 0 0 12px;
+  font-size: clamp(1rem, 1.2vw, 1.3rem);
+}
+.standings table { width: 100%; border-collapse: collapse; }
+.standings th {
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--muted);
+  font-size: clamp(.65rem, .75vw, .8rem);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.standings td {
+  padding: clamp(8px, 1vh, 14px) 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .055);
+  font-size: clamp(.9rem, 1.1vw, 1.25rem);
+}
+.standings tr:last-child td { border-bottom: none; }
+.standings .rank { color: var(--muted); width: 3ch; font-variant-numeric: tabular-nums; }
+.standings th:nth-child(n+3), .standings td:nth-child(n+3) { text-align: right; }
+.standings .pts { color: var(--blue); font-weight: 800; font-variant-numeric: tabular-nums; }
+.standings .gd { font-variant-numeric: tabular-nums; }
+.standings .leader { background: rgba(62, 166, 255, .07); }
+
+.matches-grid-title { margin-top: clamp(18px, 2.4vh, 32px); }
+.matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(220px, 18vw, 320px), 1fr));
+  gap: 12px;
+}
+
+/* sidebar */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.2vw, 16px);
+  min-height: 0;
+  overflow: auto;
+}
+.side-card {
+  padding: clamp(12px, 1.4vw, 20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+.side-title {
+  color: var(--muted);
+  font-size: clamp(.6rem, .72vw, .78rem);
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.live-card .side-title { color: var(--blue); }
+.live-card .live-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: clamp(.9rem, 1.15vw, 1.3rem);
+  font-weight: 700;
+}
+.live-card .live-team + .live-team { border-top: 1px solid rgba(255, 255, 255, .06); }
+.live-card .live-team.blue { color: var(--blue); }
+.live-card .live-team.red { color: var(--red); }
+.live-card .live-team b { font-size: 1.5em; font-variant-numeric: tabular-nums; }
+.live-card .live-round { margin-top: 8px; color: var(--muted); font-size: .85em; }
+.live-card .empty-live { color: var(--muted); line-height: 1.5; }
+
+.next-list { display: flex; flex-direction: column; gap: 8px; }
+.next-item:hover { border-color: rgba(62, 166, 255, .45); transform: translateY(-1px); }
+.next-item {
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color .15s, transform .15s;
+
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .14);
+}
+.next-round { display: block; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.next-teams { display: flex; justify-content: space-between; gap: 8px; font-size: clamp(.78rem, .9vw, .98rem); }
+.next-teams .vs-text { color: var(--muted); font-size: .8em; align-self: center; }
+.next-empty { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+
+/* ── setup ─────────────────────────────────────────────────────────────── */
+
+.view-setup {
+  flex-direction: column;
+  gap: 18px;
+  padding: clamp(16px, 2vw, 32px);
+  overflow: auto;
+}
+.setup-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.setup-head h2 { margin: 0; font-size: clamp(1.4rem, 2vw, 2rem); }
+.muted { color: var(--muted); }
+.setup-head p { margin: 4px 0 0; }
+.setup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  gap: 18px;
+  align-items: start;
+}
+.card {
+  padding: clamp(16px, 1.8vw, 26px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+}
+.card h3 { margin: 0 0 16px; font-size: clamp(1.05rem, 1.2vw, 1.3rem); }
+.card label {
+  display: block;
+  margin: 12px 0 6px;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.card input, .card select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #0a1119;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.card input:focus, .card select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(62, 166, 255, .14); }
+.fine { color: var(--muted); font-size: .78rem; line-height: 1.5; }
+
+.tournament-list { display: flex; flex-direction: column; gap: 10px; }
+.tournament-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .14);
+}
+.tournament-item .ti-main { min-width: 0; }
+.tournament-item strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tournament-item small { color: var(--muted); }
+.tournament-item .ti-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.empty-list { color: var(--muted); padding: 8px 0 18px; line-height: 1.6; }
+.setup-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+/* empty tournament */
+.empty-state {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  text-align: center;
+}
+.empty-icon { font-size: 3rem; }
+.empty-state h3 { margin: 6px 0 0; }
+.empty-state p { margin: 0 0 12px; color: var(--muted); }
+
+/* toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%, 20px);
+  z-index: 100;
+  padding: 11px 18px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(15, 22, 32, .96);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: .9rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { border-color: rgba(255, 92, 92, .45); color: #ffc9c9; }
+
+/* scrollbars */
+* { scrollbar-width: thin; scrollbar-color: #2b3b4e transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: #2b3b4e; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ── TV mode ───────────────────────────────────────────────────────────── */
+
+body.tv .operator-only,
+body.tv .operator-controls,
+body.tv #btn-save-match,
+body.tv .nav-btn[data-view="setup"] { display: none !important; }
+
+body.tv .topbar { padding-top: 8px; padding-bottom: 8px; background: rgba(7, 11, 16, .9); }
+body.tv .brand-sub { display: none; }
+body.tv .view-tournament { padding: 8px 14px 14px; gap: 8px; }
+body.tv .bracket-wrap { border-color: transparent; background: transparent; box-shadow: none; }
+body.tv .bracket { padding: 4px 2px; }
+body.tv .match,
+body.tv .next-item { cursor: default; pointer-events: none; }
+body.tv .match:hover { transform: none; border-color: var(--border); box-shadow: none; }
+body.tv .next-item:hover { transform: none; border-color: rgba(255, 255, 255, .06); }
+body.tv .match.live:hover { border-color: rgba(62, 166, 255, .85); }
+body.tv .sidebar { width: 100%; }
+body.tv .next-list { max-height: 34vh; overflow: auto; }
+body.tv .nav-sep { display: none; }
+
+body.tv .view-live { padding: 10px 16px 16px; }
+body.tv .team-panel { box-shadow: none; }
+body.tv .score { font-size: clamp(7rem, 18vw, 22rem); }
+
+/* ── responsive ────────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  .live-stage { grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr) minmax(0, 1fr); }
+  .tournament-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28vw, 340px); }
+  .brand-sub { max-width: 26vw; }
+}
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .app { height: auto; min-height: 100dvh; }
+  .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .brand { order: 1; }
+  .brand-sub { max-width: 52vw; }
+  .live-mini { order: 2; margin-left: auto; }
+  .nav { order: 3; width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .nav-btn, .icon-btn { padding: 8px 11px; }
+  .conn { margin-left: auto; }
+
+  .main { min-height: calc(100vh - 120px); min-height: calc(100dvh - 120px); }
+  .view-live { overflow: auto; padding: 12px; }
+  .live-stage { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 12px; }
+  .team-panel { min-height: 220px; padding: 18px; }
+  .score { font-size: clamp(5rem, 26vw, 10rem); }
+  .live-center { order: 2; }
+  .view-tournament { overflow: auto; padding: 12px; }
+  .tournament-body { grid-template-columns: 1fr; }
+  .bracket-wrap { min-height: 58vh; }
+  .sidebar { flex-direction: column; overflow: visible; }
+  .setup-grid { grid-template-columns: 1fr; }
+  .tournament-head { align-items: flex-start; flex-direction: column; }
+  .setup-head { align-items: flex-start; }
+}
+
+@media (max-height: 720px) and (min-width: 901px) {
+  .view-live { padding: 10px 18px; }
+  .score { font-size: clamp(5rem, 14vw, 13rem); }
+  .team-panel { padding: 14px; }
+  .vs { font-size: clamp(1.8rem, 3.5vw, 3.5rem); }
+  .hint { display: none; }
+  .view-tournament { padding: 8px 14px; }
+  .match { padding: 6px 9px; }
+  .team-row { padding: 3px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+button:disabled { opacity: .55; cursor: not-allowed; transform: none !important; }
+
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+</style>
 </head>
 <body>
-  <h1>⚽ Tourney Master</h1>
-  <div class="nav">
-    <button onclick="showView('scoreboard')" id="nav-scoreboard">Live Screen</button>
-    <button onclick="showView('tournaments')" id="nav-tournaments">Tournaments</button>
-    <button onclick="showView('bracket')" id="nav-bracket" class="hidden">Bracket & Standings</button>
-  </div>
-
-  <!-- Scoreboard / Live Screen -->
-  <div id="view-scoreboard" class="card">
-    <h2 id="current-match-title" style="font-size: 2rem; color: var(--primary);">Casual Match</h2>
-    <div class="scoreboard">
-      <div class="team">
-        <h2 class="blue-bg" id="team1-name">Team Blue</h2>
-        <div class="score" id="score1">0</div>
-        <div class="btn-group">
-          <button class="btn-sub" onclick="sendCommand('t1_sub')">-1</button>
-          <button class="btn-add" onclick="sendCommand('t1_add')">+1</button>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-ball">⚽</div>
+        <div class="brand-text">
+          <h1>TOURNEY<span>MASTER</span></h1>
+          <div class="brand-sub" id="brand-sub">Casual Match</div>
         </div>
       </div>
-      <b style="font-size: 3rem; color: var(--text-muted);">VS</b>
-      <div class="team">
-        <h2 class="red-bg" id="team2-name">Team Red</h2>
-        <div class="score" id="score2">0</div>
-        <div class="btn-group">
-          <button class="btn-sub" onclick="sendCommand('t2_sub')">-1</button>
-          <button class="btn-add" onclick="sendCommand('t2_add')">+1</button>
+
+      <div class="live-mini" id="live-mini">
+        <div class="mini-side blue">
+          <span class="mini-name" id="mini-t1">Blau</span>
+          <span class="mini-score" id="mini-s1">0</span>
+        </div>
+        <span class="mini-colon">:</span>
+        <div class="mini-side red">
+          <span class="mini-score" id="mini-s2">0</span>
+          <span class="mini-name" id="mini-t2">Rot</span>
         </div>
       </div>
-    </div>
-    <div class="action-buttons" style="display: flex; gap: 15px; margin-top: 20px;">
-      <button class="big-btn" style="background:#f08c00; flex: 1;" onclick="sendCommand('reset')">Reset Scoreboard</button>
-      <button id="btn-save-match" class="hidden big-btn" style="background:var(--primary); flex: 2;" onclick="saveMatchData()">Save Match & Advance</button>
-    </div>
-  </div>
 
-  <!-- Tournaments List -->
-  <div id="view-tournaments" class="card hidden">
-    <h2>Your Tournaments</h2>
-    <div id="tournament-list"></div>
-    <button class="big-btn" style="background:var(--primary); margin-top:30px;" onclick="showView('create')">+ Create New Tournament</button>
-  </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="live">Live</button>
+        <button class="nav-btn" data-view="tournament">Turnier</button>
+        <button class="nav-btn" data-view="setup">Setup</button>
+        <span class="nav-sep"></span>
+        <button class="icon-btn" id="btn-tv" title="TV-Modus (T)">TV</button>
+        <button class="icon-btn" id="btn-fullscreen" title="Vollbild (F)">⛶</button>
+        <span class="conn connecting" id="conn" title="Verbindung">●</span>
+      </nav>
+    </header>
 
-  <!-- Create Tournament View -->
-  <div id="view-create" class="card hidden">
-    <h2>Create New Tournament</h2>
-    <label>Tournament Name:</label>
-    <input type="text" id="t-name" placeholder="e.g. Friday Night Foosball Cup">
-    
-    <label>Mode:</label>
-    <select id="t-mode">
-      <option value="elimination">Elimination (Knockout Tree)</option>
-      <option value="seeding">Seeding (Round Robin Only)</option>
-    </select>
-    
-    <label>Teams (comma separated):</label>
-    <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi">
-    
-    <button class="big-btn" style="background:var(--primary);" onclick="createTournament()">Generate & Start Tournament</button>
-  </div>
+    <main class="main">
+      <!-- ───────────────────────── LIVE ───────────────────────── -->
+      <section class="view view-live active" id="view-live">
+        <div class="live-stage">
+          <article class="team-panel blue" id="panel-1">
+            <div class="team-kicker">BLAU</div>
+            <h2 class="team-title" id="live-name1">Team Blue</h2>
+            <div class="score" id="score1">0</div>
+            <div class="operator-controls">
+              <button class="score-btn sub" data-cmd="t1_sub" aria-label="Blau minus">−1</button>
+              <button class="score-btn add" data-cmd="t1_add" aria-label="Blau plus">+1</button>
+            </div>
+          </article>
 
-  <!-- Bracket / Standings -->
-  <div id="view-bracket" class="card hidden" style="max-width: 100%;">
-    <h2 id="b-title" style="font-size: 2.5rem; margin-bottom: 30px;">Tournament</h2>
-    <div id="seeding-section"></div>
-    <div id="bracket-section" class="bracket-container"></div>
-  </div>
+          <div class="live-center">
+            <div class="match-status" id="match-status">CASUAL MATCH</div>
+            <div class="vs">VS</div>
+            <div class="center-actions">
+              <button class="btn primary hidden" id="btn-save-match">Spiel speichern &amp; weiter</button>
+              <button class="btn warn operator-only" data-cmd="reset">Reset Scoreboard</button>
+              <button class="btn ghost operator-only" id="btn-open-tournament">Turnierübersicht</button>
+            </div>
+            <div class="hint operator-only">
+              <kbd>1</kbd>/<kbd>2</kbd> Tor · <kbd>R</kbd> Reset · <kbd>T</kbd> TV
+            </div>
+          </div>
 
-  <script>
-    // --- WebSocket ---
-    var gateway = `ws://${window.location.hostname}/ws`;
-    var websocket;
-    window.addEventListener('load', init);
+          <article class="team-panel red" id="panel-2">
+            <div class="team-kicker">ROT</div>
+            <h2 class="team-title" id="live-name2">Team Red</h2>
+            <div class="score" id="score2">0</div>
+            <div class="operator-controls">
+              <button class="score-btn sub" data-cmd="t2_sub" aria-label="Rot minus">−1</button>
+              <button class="score-btn add" data-cmd="t2_add" aria-label="Rot plus">+1</button>
+            </div>
+          </article>
+        </div>
+        <div class="goal-overlay" id="goal-overlay">TOR!</div>
+      </section>
 
-    function initWebSocket() {
-      websocket = new WebSocket(gateway);
-      websocket.onmessage = onMessage;
-      websocket.onclose = () => setTimeout(initWebSocket, 2000);
-    }
+      <!-- ────────────────────── TOURNAMENT ─────────────────────── -->
+      <section class="view view-tournament" id="view-tournament">
+        <div class="tournament-head">
+          <div class="tournament-heading">
+            <h2 id="t-title">Kein Turnier</h2>
+            <div class="t-meta" id="t-meta">Erstelle ein Turnier im Setup.</div>
+            <div class="champion hidden" id="champion"></div>
+          </div>
+          <div class="tournament-actions">
+            <button class="btn ghost" id="btn-back-live" data-view="live">Live</button>
+            <button class="btn ghost operator-only" id="btn-edit-tournament" data-view="setup">Setup</button>
+          </div>
+        </div>
 
-    let currentScore = { team1: 0, team2: 0 };
-    function onMessage(event) {
-      let data = JSON.parse(event.data);
-      currentScore = data;
-      document.getElementById('score1').innerHTML = data.team1;
-      document.getElementById('score2').innerHTML = data.team2;
-      
-      // Live Update in Bracket
-      if (activeTournament && activeMatchId) {
-        let sc1 = document.getElementById(`live-s1-${activeMatchId}`);
-        let sc2 = document.getElementById(`live-s2-${activeMatchId}`);
-        if(sc1) sc1.innerText = data.team1;
-        if(sc2) sc2.innerText = data.team2;
-      }
-    }
-    function sendCommand(cmd) { if(websocket && websocket.readyState === WebSocket.OPEN) websocket.send(cmd); }
+        <div class="tournament-body">
+          <div class="bracket-wrap" id="bracket-wrap">
+            <div class="bracket" id="bracket"></div>
+            <div class="standings hidden" id="standings"></div>
+            <div class="empty-state hidden" id="empty-tournament">
+              <div class="empty-icon">🏆</div>
+              <h3>Noch kein Turnier</h3>
+              <p>Lege im Setup ein Turnier an oder lade das Demo-Turnier.</p>
+              <button class="btn primary" data-view="setup">Zum Setup</button>
+            </div>
+          </div>
 
-    // --- IndexedDB & State ---
-    let db;
-    let tournaments = [];
-    let activeTournament = null;
-    let activeMatchId = null;
+          <aside class="sidebar">
+            <div class="side-card live-card" id="live-card"></div>
+            <div class="side-card">
+              <div class="side-title">Nächste Spiele</div>
+              <div class="next-list" id="next-matches"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
 
-    function init() {
-      initWebSocket();
-      let request = indexedDB.open("FoosballTournamentsPro", 1);
-      request.onupgradeneeded = (e) => {
-        let database = e.target.result;
-        if (!database.objectStoreNames.contains('tournaments')) {
-          database.createObjectStore('tournaments', { keyPath: 'id' });
-        }
-      };
-      request.onsuccess = (e) => {
-        db = e.target.result;
-        loadTournaments();
-      };
-    }
-
-    function saveDB(tournament, callback) {
-      let tx = db.transaction('tournaments', 'readwrite');
-      tx.objectStore('tournaments').put(tournament);
-      tx.oncomplete = () => { loadTournaments(); if(callback) callback(); };
-    }
-
-    function loadTournaments() {
-      let tx = db.transaction('tournaments', 'readonly');
-      let store = tx.objectStore('tournaments');
-      let request = store.getAll();
-      request.onsuccess = () => {
-        tournaments = request.result;
-        renderTournaments();
-      };
-    }
-
-    // --- Navigation ---
-    function showView(viewId) {
-      document.querySelectorAll('.card').forEach(el => el.classList.add('hidden'));
-      document.getElementById('view-' + viewId).classList.remove('hidden');
-      document.querySelectorAll('.nav button').forEach(el => el.classList.remove('active'));
-      let navBtn = document.getElementById('nav-' + viewId);
-      if(navBtn) navBtn.classList.add('active');
-    }
-
-    // --- UI Rendering ---
-    function renderTournaments() {
-      let html = tournaments.length ? '' : '<p style="text-align:center; color:gray;">No tournaments found. Create one to get started!</p>';
-      // Sort newest first
-      let sorted = [...tournaments].sort((a,b) => b.id - a.id);
-      sorted.forEach(t => {
-        html += `<div class="list-item">
+      <!-- ───────────────────────── SETUP ───────────────────────── -->
+      <section class="view view-setup" id="view-setup">
+        <div class="setup-head">
           <div>
-            <strong>${t.name}</strong><br>
-            <small style="color:var(--text-muted)">Mode: ${t.mode} | Teams: ${t.teams.length}</small>
+            <h2>Setup</h2>
+            <p class="muted">Turniere verwalten und neue erstellen.</p>
           </div>
-          <div style="display:flex; gap:10px;">
-            <button onclick="openTournament(${t.id})">Open</button>
-            <button style="background:var(--accent)" onclick="deleteTournament(${t.id})">Del</button>
+          <div class="setup-actions">
+            <button class="btn ghost" id="btn-setup-demo">Demo-Turnier laden</button>
+            <button class="btn primary" id="btn-new-tournament">+ Neues Turnier</button>
           </div>
-        </div>`;
-      });
-      document.getElementById('tournament-list').innerHTML = html;
-      if(tournaments.length > 0 && !activeTournament) openTournament(sorted[0].id);
-      else if(tournaments.length === 0) showView('tournaments');
-    }
+        </div>
 
-    function deleteTournament(id) {
-      if(!confirm("Are you sure you want to permanently delete this tournament?")) return;
-      let tx = db.transaction('tournaments', 'readwrite');
-      tx.objectStore('tournaments').delete(id);
-      tx.oncomplete = () => { 
-        if(activeTournament && activeTournament.id === id){ 
-          activeTournament = null; activeMatchId = null; 
-          document.getElementById('nav-bracket').classList.add('hidden'); 
-          showView('tournaments');
-        } 
-        loadTournaments(); 
-      };
-    }
+        <div class="setup-grid">
+          <div class="card">
+            <h3>Turniere</h3>
+            <div id="tournament-list" class="tournament-list"></div>
+          </div>
 
-    function createTournament() {
-      let name = document.getElementById('t-name').value.trim() || "Unnamed Tournament";
-      let mode = document.getElementById('t-mode').value;
-      let teamsRaw = document.getElementById('t-teams').value.split(',').map(s=>s.trim()).filter(s=>s);
-      
-      if(teamsRaw.length < 2) return alert("You need at least 2 teams to start a tournament!");
+          <div class="card" id="create-card">
+            <h3>Neues Turnier</h3>
+            <label for="t-name">Name</label>
+            <input type="text" id="t-name" placeholder="z. B. Friday Night Foosball Cup" autocomplete="off">
 
-      let t = {
-        id: Date.now(),
-        name, mode,
-        teams: teamsRaw.map((v, i) => ({ id: i, name: v, points: 0, gd: 0 })),
-        matches: []
-      };
-      
-      generateMatches(t);
-      saveDB(t, () => {
-        openTournament(t.id);
-        document.getElementById('t-name').value = '';
-        document.getElementById('t-teams').value = '';
-      });
-    }
+            <label for="t-mode">Modus</label>
+            <select id="t-mode">
+              <option value="elimination">K.-o.-System (Bracket)</option>
+              <option value="seeding">Jeder gegen jeden (Tabelle)</option>
+            </select>
 
-    function generateMatches(t) {
-      t.matches = [];
-      let mIdCounter = 100;
-      
-      if(t.mode === 'seeding') {
-        // Round Robin
-        for(let i=0; i<t.teams.length; i++) {
-          for(let j=i+1; j<t.teams.length; j++) {
-            t.matches.push({ id: mIdCounter++, t1: t.teams[i].id, t2: t.teams[j].id, s1:0, s2:0, played:false, round:"seeding" });
+            <label for="t-teams">Teams (kommagetrennt)</label>
+            <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi" autocomplete="off">
+            <p class="fine">Mindestens 2 Teams. Bei K.-o. werden Freilose automatisch verteilt.</p>
+
+            <button class="btn primary big" id="btn-generate">Turnier erstellen</button>
+          </div>
+        </div>
+
+        <div class="setup-foot">
+          <div id="connection-note" class="fine">Verbinde mit dem ESP32 oder starte den lokalen Server.</div>
+          <button class="btn ghost small" id="btn-mock">Demo-Modus (ohne ESP32)</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script>
+/* =========================================================================
+   Tourney Master — dashboard logic
+   Works with the ESP32 WebSocket and with the local mock server.
+   ========================================================================= */
+
+(() => {
+  'use strict';
+
+  // ── tiny helpers ────────────────────────────────────────────────────────
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const clampInt = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(255, Math.trunc(n))) : 0;
+  };
+  const escapeHtml = (value = '') =>
+    String(value).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+
+  const params = new URLSearchParams(location.search);
+  const IS_FILE = location.protocol === 'file:';
+  const IS_TV_PATH = location.pathname.replace(/\/+$/, '') === '/tv';
+  const DEMO_NAME = 'Friday Night Foosball Cup';
+  const DEMO_TEAMS = [
+    'Die Ballermänner', 'FC Tischkante', 'Team Titan', 'Die Roten',
+    'Stangenfest', 'Ballzauber', 'Netzroller', 'Kellerkinder',
+  ];
+
+  // ── state ───────────────────────────────────────────────────────────────
+  const state = {
+    db: null,
+    memory: [],
+    tournaments: [],
+    activeTournament: null,
+    activeMatchId: null,
+    currentScore: { team1: 0, team2: 0 },
+    view: 'live',
+    tv: false,
+    mock: params.has('mock') || IS_FILE,
+    ws: null,
+    wsStatus: 'connecting',
+    reconnectTimer: null,
+    firstScore: true,
+    goalTimer: null,
+    toastTimer: null,
+  };
+
+  // ── IndexedDB ───────────────────────────────────────────────────────────
+  function openDB() {
+    return new Promise((resolve) => {
+      if (!('indexedDB' in window)) return resolve(false);
+      try {
+        const req = indexedDB.open('FoosballTournamentsPro', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('tournaments')) {
+            db.createObjectStore('tournaments', { keyPath: 'id' });
           }
-        }
-      } else if (t.mode === 'elimination') {
-        // Full Bracket Generation
-        let numT = t.teams.length;
-        let p2 = 1, rounds = 0;
-        while(p2 < numT) { p2 *= 2; rounds++; }
-        
-        let localMatches = [];
-        // Create empty tree
-        for(let r = 0; r < rounds; r++) {
-          let mInRound = p2 / Math.pow(2, r + 1);
-          for(let i = 0; i < mInRound; i++) {
-            let rName = r === rounds-1 ? 'Final' : (r === rounds-2 ? 'Semifinal' : 'Round ' + (r+1));
-            localMatches.push({
-              id: mIdCounter++, roundIndex: r, matchIndex: i, roundName: rName,
-              t1: null, t2: null, s1: 0, s2: 0, played: false, nextMatchId: null, nextSlot: null
-            });
-          }
-        }
-        
-        // Link tree node
-        for(let m of localMatches) {
-          if(m.roundIndex < rounds - 1) {
-            let nextIndex = Math.floor(m.matchIndex / 2);
-            let nextM = localMatches.find(x => x.roundIndex === m.roundIndex + 1 && x.matchIndex === nextIndex);
-            if(nextM) {
-              m.nextMatchId = nextM.id;
-              m.nextSlot = (m.matchIndex % 2 === 0) ? 't1' : 't2';
-            }
-          }
-        }
-        
-        // Seed first round
-        let firstR = localMatches.filter(m => m.roundIndex === 0);
-        let tIdx = 0;
-        // Distribute teams evenly
-        for(let i=0; i<firstR.length; i++) if(tIdx < numT) firstR[i].t1 = t.teams[tIdx++].id;
-        for(let i=0; i<firstR.length; i++) if(tIdx < numT) firstR[i].t2 = t.teams[tIdx++].id;
-        
-        // Process BYEs (Matches with only 1 team)
-        for(let m of firstR) {
-          if((m.t1 !== null && m.t2 === null) || (m.t2 !== null && m.t1 === null)) {
-            m.played = true; m.s1 = m.t1 !== null ? 1 : 0; m.s2 = m.t2 !== null ? 1 : 0;
-            let adv = m.t1 !== null ? m.t1 : m.t2;
-            let nextM = localMatches.find(x => x.id === m.nextMatchId);
-            if(nextM) nextM[m.nextSlot] = adv;
-          }
-        }
-        t.matches = localMatches;
+        };
+        req.onsuccess = (e) => { state.db = e.target.result; resolve(true); };
+        req.onerror = () => { state.db = null; resolve(false); };
+        req.onblocked = () => { state.db = null; resolve(false); };
+      } catch (err) {
+        console.warn('IndexedDB nicht verfügbar:', err);
+        state.db = null;
+        resolve(false);
       }
+    });
+  }
+
+  function dbAll() {
+    return new Promise((resolve) => {
+      if (!state.db) return resolve(state.memory.map((t) => ({ ...t })));
+      try {
+        const tx = state.db.transaction('tournaments', 'readonly');
+        const req = tx.objectStore('tournaments').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve(state.memory.map((t) => ({ ...t })));
+      } catch (err) {
+        resolve(state.memory.map((t) => ({ ...t })));
+      }
+    });
+  }
+
+  function dbPut(t) {
+    return new Promise((resolve, reject) => {
+      if (!state.db) return resolve();
+      try {
+        const tx = state.db.transaction('tournaments', 'readwrite');
+        tx.objectStore('tournaments').put(t);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) { reject(err); }
+    });
+  }
+
+  function dbDelete(id) {
+    return new Promise((resolve, reject) => {
+      if (!state.db) return resolve();
+      try {
+        const tx = state.db.transaction('tournaments', 'readwrite');
+        tx.objectStore('tournaments').delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      } catch (err) { reject(err); }
+    });
+  }
+
+  function upsertMemory(t) {
+    const i = state.memory.findIndex((x) => x.id === t.id);
+    if (i >= 0) state.memory[i] = t;
+    else state.memory.push(t);
+  }
+
+  async function loadTournaments(selectNewest = true) {
+    const all = await dbAll();
+    state.tournaments = all.map((t) => ({
+      ...t,
+      matches: Array.isArray(t.matches) ? t.matches : [],
+    }));
+
+    const activeId = state.activeTournament?.id;
+    if (activeId != null) {
+      state.activeTournament =
+        state.tournaments.find((t) => t.id === activeId) || null;
     }
-
-    function openTournament(tId) {
-      activeTournament = tournaments.find(t => t.id === tId);
-      if(!activeTournament) return;
-      document.getElementById('nav-bracket').classList.remove('hidden');
-      renderActiveTournament();
-      showView('bracket');
+    if (!state.activeTournament && selectNewest && state.tournaments.length) {
+      state.activeTournament = [...state.tournaments]
+        .sort((a, b) => b.id - a.id)[0];
     }
+    if (state.activeTournament && state.activeMatchId != null &&
+        !state.activeTournament.matches.some((m) => m.id === state.activeMatchId)) {
+      state.activeMatchId = null;
+    }
+  }
 
-    function renderActiveTournament() {
-      if(!activeTournament) return;
-      document.getElementById('b-title').innerText = activeTournament.name;
-      
-      let seedSec = document.getElementById('seeding-section');
-      let brackSec = document.getElementById('bracket-section');
-      seedSec.innerHTML = ''; brackSec.innerHTML = '';
-      
-      let teamsMap = {};
-      activeTournament.teams.forEach(t => teamsMap[t.id] = t.name);
+  async function persist(t) {
+    upsertMemory(t);
+    try {
+      await dbPut(t);
+    } catch (err) {
+      console.warn('DB-Schreibfehler, nutze Speicher:', err);
+      state.db = null;
+    }
+    const activeId = state.activeTournament?.id;
+    state.tournaments = await dbAll();
+    if (activeId != null) {
+      state.activeTournament =
+        state.tournaments.find((x) => x.id === activeId) || t;
+    } else {
+      state.activeTournament = t;
+    }
+  }
 
-      if(activeTournament.mode === 'seeding') {
-        brackSec.style.display = 'none';
-        seedSec.style.display = 'block';
-        
-        // Calculate Standings
-        activeTournament.teams.forEach(te => {te.points=0; te.gd=0;});
-        activeTournament.matches.filter(m=>m.played).forEach(m => {
-          let t1 = activeTournament.teams.find(x=>x.id===m.t1);
-          let t2 = activeTournament.teams.find(x=>x.id===m.t2);
-          if(!t1 || !t2) return;
-          t1.gd += (m.s1 - m.s2); t2.gd += (m.s2 - m.s1);
-          if(m.s1 > m.s2) t1.points += 3;
-          else if(m.s1 < m.s2) t2.points += 3;
-          else { t1.points+=1; t2.points+=1; }
-        });
-        
-        let sHtml = "<h3>Standings</h3><table><tr><th>Team</th><th>Pts</th><th>GD</th></tr>";
-        let sorted = [...activeTournament.teams].sort((a,b) => b.points - a.points || b.gd - a.gd);
-        sorted.forEach(t => { sHtml += `<tr><td>${t.name}</td><td>${t.points}</td><td>${t.gd}</td></tr>`; });
-        sHtml += "</table><h3 style='margin-top:30px;'>Matches</h3><div style='display:flex; flex-wrap:wrap; gap:15px; justify-content:center;'>";
-        
-        activeTournament.matches.forEach(m => {
-          let activeClass = (m.id === activeMatchId) ? "live" : "";
-          let state = m.played ? "Finished" : "Click to Play";
-          let t1n = m.t1 !== null ? teamsMap[m.t1] : "TBD";
-          let t2n = m.t2 !== null ? teamsMap[m.t2] : "TBD";
-          let disS1 = m.id === activeMatchId ? `<span id="live-s1-${m.id}">${currentScore.team1}</span>` : m.s1;
-          let disS2 = m.id === activeMatchId ? `<span id="live-s2-${m.id}">${currentScore.team2}</span>` : m.s2;
-          
-          let ms = m.played || m.id === activeMatchId ? `<span class="score-box score-t1">${disS1}</span> - <span class="score-box score-t2">${disS2}</span>` : `<span class="score-box">vs</span>`;
-          sHtml += `<div class="match ${activeClass}" style="width:300px;" onclick="playMatch(${m.id})">
-            <div class="match-header">${state}</div>
-            <div class="match-team ${m.played && m.s1>m.s2 ? 'winner':''}">${t1n}</div>
-            <div class="match-header" style="background:#111;">${ms}</div>
-            <div class="match-team ${m.played && m.s2>m.s1 ? 'winner':''}">${t2n}</div>
-          </div>`;
-        });
-        sHtml += "</div>";
-        seedSec.innerHTML = sHtml;
-      } 
-      else if (activeTournament.mode === 'elimination') {
-        seedSec.style.display = 'none';
-        brackSec.style.display = 'flex';
-        
-        let roundsMap = {};
-        activeTournament.matches.forEach(m => {
-          if(!roundsMap[m.roundIndex]) roundsMap[m.roundIndex] = [];
-          roundsMap[m.roundIndex].push(m);
-        });
-        
-        let maxR = Math.max(...Object.keys(roundsMap).map(Number));
-        let bHtml = `<div class="bracket">`;
-        
-        for(let r=0; r<=maxR; r++) {
-          let rName = roundsMap[r][0].roundName;
-          bHtml += `<div class="round"><div class="round-title">${rName}</div>`;
-          
-          roundsMap[r].forEach(m => {
-            let activeClass = (m.id === activeMatchId) ? "live" : "";
-            let t1n = m.t1 !== null ? teamsMap[m.t1] : "TBD";
-            let t2n = m.t2 !== null ? teamsMap[m.t2] : "TBD";
-            
-            let disS1 = m.id === activeMatchId ? `<span id="live-s1-${m.id}">${currentScore.team1}</span>` : m.s1;
-            let disS2 = m.id === activeMatchId ? `<span id="live-s2-${m.id}">${currentScore.team2}</span>` : m.s2;
-            
-            let v1Class = (m.played && m.s1 > m.s2) || (m.t1 !== null && m.t2 === null && m.played) ? "winner" : "";
-            let v2Class = (m.played && m.s2 > m.s1) || (m.t2 !== null && m.t1 === null && m.played) ? "winner" : "";
-            
-            bHtml += `<div class="match ${activeClass}" id="match-el-${m.id}" onclick="playMatch(${m.id})">
-              <div class="match-header">${m.played ? 'Finished' : (m.id === activeMatchId ? 'LIVE' : `Match ${m.id}`)}</div>
-              <div class="match-team ${v1Class}"><span>${t1n}</span> <span class="score-box score-t1">${m.played || m.id===activeMatchId ? disS1 : '-'}</span></div>
-              <div class="match-team ${v2Class}"><span>${t2n}</span> <span class="score-box score-t2">${m.played || m.id===activeMatchId ? disS2 : '-'}</span></div>
-            </div>`;
+  // ── tournament model ────────────────────────────────────────────────────
+  const modeLabel = (m) =>
+    m === 'seeding' ? 'Jeder gegen jeden' : 'K.-o.-System';
+
+  const roundLabel = (m) =>
+    m.roundName || (m.round === 'seeding' ? 'Jeder gegen jeden' : 'Spiel');
+
+  function roundName(r, rounds) {
+    const fromEnd = rounds - r;
+    if (fromEnd === 1) return 'Finale';
+    if (fromEnd === 2) return 'Halbfinale';
+    if (fromEnd === 3) return 'Viertelfinale';
+    if (fromEnd === 4) return 'Achtelfinale';
+    return `Runde ${r + 1}`;
+  }
+
+  function generateMatches(t) {
+    t.matches = [];
+    let id = 100;
+
+    if (t.mode === 'seeding') {
+      for (let i = 0; i < t.teams.length; i++) {
+        for (let j = i + 1; j < t.teams.length; j++) {
+          t.matches.push({
+            id: id++, t1: t.teams[i].id, t2: t.teams[j].id,
+            s1: 0, s2: 0, played: false,
+            round: 'seeding', roundName: 'Jeder gegen jeden',
           });
-          bHtml += `</div>`;
         }
-        bHtml += `</div>`;
-        brackSec.innerHTML = bHtml;
+      }
+      return;
+    }
+
+    const n = t.teams.length;
+    let p2 = 1;
+    let rounds = 0;
+    while (p2 < n) { p2 *= 2; rounds++; }
+
+    const local = [];
+    for (let r = 0; r < rounds; r++) {
+      const count = p2 / Math.pow(2, r + 1);
+      for (let i = 0; i < count; i++) {
+        local.push({
+          id: id++, roundIndex: r, matchIndex: i,
+          roundName: roundName(r, rounds),
+          t1: null, t2: null, s1: 0, s2: 0,
+          played: false, bye: false,
+          nextMatchId: null, nextSlot: null,
+        });
       }
     }
 
-    function playMatch(mId) {
-      if(!activeTournament) return;
-      let m = activeTournament.matches.find(x=>x.id===mId);
-      if(!m) return;
-      if(m.t1 === null || m.t2 === null) return alert("Teams are not decided for this match yet!");
-      if(m.played) {
-         if(!confirm("This match already finished. Play again and override?")) return;
+    for (const m of local) {
+      if (m.roundIndex < rounds - 1) {
+        const nextIndex = Math.floor(m.matchIndex / 2);
+        const next = local.find(
+          (x) => x.roundIndex === m.roundIndex + 1 && x.matchIndex === nextIndex);
+        if (next) {
+          m.nextMatchId = next.id;
+          m.nextSlot = (m.matchIndex % 2 === 0) ? 't1' : 't2';
+        }
       }
-      
-      activeMatchId = mId;
-      document.getElementById('team1-name').innerText = activeTournament.teams.find(x=>x.id===m.t1).name;
-      document.getElementById('team2-name').innerText = activeTournament.teams.find(x=>x.id===m.t2).name;
-      
-      let roundInfo = m.roundName ? `- ${m.roundName}` : '';
-      document.getElementById('current-match-title').innerText = `${activeTournament.name} ${roundInfo}`;
-      
-      document.getElementById('btn-save-match').classList.remove('hidden');
-      document.getElementById('btn-save-match').innerText = activeTournament.mode === 'elimination' ? "Save Match & Advance" : "Save Match";
-      
-      sendCommand('reset'); 
-      showView('scoreboard');
-      renderActiveTournament(); // Render again to show the pulsing border live state on bracket
     }
 
-    function saveMatchData() {
-      if(!activeTournament || !activeMatchId) return;
-      let m = activeTournament.matches.find(x=>x.id===activeMatchId);
-      
-      if(currentScore.team1 === currentScore.team2 && activeTournament.mode === 'elimination') {
-         return alert("Elimination matches cannot end in a draw! Keep playing.");
-      }
+    const first = local.filter((m) => m.roundIndex === 0);
+    let idx = 0;
+    for (const m of first) if (idx < n) m.t1 = t.teams[idx++].id;
+    for (const m of first) if (idx < n) m.t2 = t.teams[idx++].id;
 
-      m.s1 = currentScore.team1;
-      m.s2 = currentScore.team2;
-      m.played = true;
-      
-      // Auto-advance in elimination
-      if(activeTournament.mode === 'elimination' && m.nextMatchId) {
-         let nextM = activeTournament.matches.find(x => x.id === m.nextMatchId);
-         if(nextM) {
-            let winnerId = m.s1 > m.s2 ? m.t1 : m.t2;
-            nextM[m.nextSlot] = winnerId;
-            nextM.played = false; // reset state if overriden
-         }
+    for (const m of first) {
+      if ((m.t1 !== null && m.t2 === null) ||
+          (m.t2 !== null && m.t1 === null)) {
+        m.played = true;
+        m.bye = true;
+        m.s1 = m.t1 !== null ? 1 : 0;
+        m.s2 = m.t2 !== null ? 1 : 0;
+        const winner = m.t1 !== null ? m.t1 : m.t2;
+        const next = local.find((x) => x.id === m.nextMatchId);
+        if (next) next[m.nextSlot] = winner;
       }
+    }
 
-      saveDB(activeTournament, () => {
-        document.getElementById('btn-save-match').classList.add('hidden');
-        document.getElementById('current-match-title').innerText = "Casual Match";
-        document.getElementById('team1-name').innerText = "Team Blue";
-        document.getElementById('team2-name').innerText = "Team Red";
-        activeMatchId = null;
-        renderActiveTournament();
-        showView('bracket');
+    t.matches = local;
+  }
+
+  function advanceWinner(t, m) {
+    if (!m || m.nextMatchId == null) return;
+    const next = t.matches.find((x) => x.id === m.nextMatchId);
+    if (!next) return;
+    const winner = m.s1 > m.s2 ? m.t1 : m.t2;
+    if (winner !== null) next[m.nextSlot] = winner;
+  }
+
+  function clearAdvance(t, m) {
+    if (!m) return;
+    m.played = false;
+    m.s1 = 0;
+    m.s2 = 0;
+    m.bye = false;
+    if (m.nextMatchId != null) {
+      const next = t.matches.find((x) => x.id === m.nextMatchId);
+      if (next) {
+        next[m.nextSlot] = null;
+        clearAdvance(t, next);
+      }
+    }
+  }
+
+  const teamName = (t, id) => {
+    const team = t?.teams?.find((x) => x.id === id);
+    return team ? team.name : 'TBD';
+  };
+
+  function activeMatch() {
+    const t = state.activeTournament;
+    if (!t || state.activeMatchId == null) return null;
+    return t.matches.find((m) => m.id === state.activeMatchId) || null;
+  }
+
+  function playedCount(t) {
+    const total = t.matches.filter((m) => !m.bye).length;
+    const played = t.matches.filter((m) => m.played && !m.bye).length;
+    return { played, total };
+  }
+
+  // ── rendering: header / live ────────────────────────────────────────────
+  function renderHeader() {
+    const t = state.activeTournament;
+    const m = activeMatch();
+    $('#brand-sub').textContent = t ? t.name : 'Casual Match';
+
+    const n1 = m ? teamName(t, m.t1) : 'Blau';
+    const n2 = m ? teamName(t, m.t2) : 'Rot';
+    $('#mini-t1').textContent = n1;
+    $('#mini-t2').textContent = n2;
+    $('#mini-t1').title = n1;
+    $('#mini-t2').title = n2;
+  }
+
+  function renderLive() {
+    const t = state.activeTournament;
+    const m = activeMatch();
+
+    const n1 = m ? teamName(t, m.t1) : 'Team Blue';
+    const n2 = m ? teamName(t, m.t2) : 'Team Red';
+
+    const el1 = $('#live-name1');
+    const el2 = $('#live-name2');
+    el1.textContent = n1;
+    el2.textContent = n2;
+    el1.title = n1;
+    el2.title = n2;
+
+    $('#match-status').textContent = m
+      ? `${t.name} · ${roundLabel(m)}`
+      : 'CASUAL MATCH';
+
+    const saveBtn = $('#btn-save-match');
+    if (m) {
+      saveBtn.classList.remove('hidden');
+      saveBtn.textContent = t.mode === 'elimination'
+        ? 'Spiel speichern & weiter'
+        : 'Spiel speichern';
+    } else {
+      saveBtn.classList.add('hidden');
+    }
+
+    const openBtn = $('#btn-open-tournament');
+    openBtn.textContent = t ? 'Turnierübersicht' : 'Turnier anlegen';
+  }
+
+  function updateScoreUI() {
+    const s1 = state.currentScore.team1;
+    const s2 = state.currentScore.team2;
+    $('#score1').textContent = s1;
+    $('#score2').textContent = s2;
+    $('#mini-s1').textContent = s1;
+    $('#mini-s2').textContent = s2;
+    $$('[data-live="s1"]').forEach((el) => { el.textContent = s1; });
+    $$('[data-live="s2"]').forEach((el) => { el.textContent = s2; });
+  }
+
+  // ── rendering: tournament ───────────────────────────────────────────────
+  function matchCard(t, m, showRound = true) {
+    const live = m.id === state.activeMatchId;
+    const finished = !!m.played;
+    const tbd = m.t1 === null || m.t2 === null;
+    const draw = finished && m.s1 === m.s2;
+    const winnerId = finished && !draw
+      ? (m.s1 > m.s2 ? m.t1 : m.t2)
+      : null;
+
+    const classes = ['match'];
+    if (live) classes.push('live');
+    if (finished) classes.push('finished');
+    if (tbd) classes.push('tbd');
+    if (m.bye) classes.push('bye');
+
+    const header = live
+      ? '<span class="live-tag">● LIVE</span>'
+      : m.bye
+        ? 'Freilos'
+        : finished
+          ? '<span class="win-tag">✓ Beendet</span>'
+          : 'Offen';
+
+    const row = (id, score, side) => {
+      const known = id !== null;
+      const name = known ? teamName(t, id) : 'TBD';
+      const isWinner = winnerId !== null && id === winnerId;
+      const isLoser = winnerId !== null && id !== null && id !== winnerId;
+      const showScore = finished || live;
+      const scoreHtml = showScore
+        ? `<span class="score-box"${live ? ` data-live="${side}"` : ''}>${score}</span>`
+        : '<span class="score-box">–</span>';
+      return `<div class="team-row${isWinner ? ' winner' : ''}${isLoser ? ' loser' : ''}">` +
+        `<span class="name${known ? '' : ' tbd-text'}">${escapeHtml(name)}</span>` +
+        `${scoreHtml}</div>`;
+    };
+
+    const score1 = live ? state.currentScore.team1 : m.s1;
+    const score2 = live ? state.currentScore.team2 : m.s2;
+
+    return `<div class="${classes.join(' ')}" data-match="${m.id}"` +
+      `${!tbd && !state.tv ? ' title="Klicken zum Starten"' : ''}>` +
+      `<div class="match-header"><span>${header}</span>` +
+      `${showRound ? `<span>${escapeHtml(roundLabel(m))}</span>` : ''}</div>` +
+      `${row(m.t1, score1, 's1')}${row(m.t2, score2, 's2')}` +
+      `</div>`;
+  }
+
+  function renderBracket(t) {
+    const rounds = new Map();
+    for (const m of t.matches) {
+      const r = m.roundIndex ?? 0;
+      if (!rounds.has(r)) rounds.set(r, []);
+      rounds.get(r).push(m);
+    }
+    const keys = [...rounds.keys()].sort((a, b) => a - b);
+    return keys.map((r) => {
+      const matches = rounds.get(r).sort((a, b) => a.matchIndex - b.matchIndex);
+      const title = matches[0]?.roundName || `Runde ${r + 1}`;
+      return `<div class="round"><div class="round-title">${escapeHtml(title)}</div>` +
+        `<div class="round-matches">${matches.map((m) => matchCard(t, m, false)).join('')}</div>` +
+        `</div>`;
+    }).join('');
+  }
+
+  function standingsRows(t) {
+    const rows = new Map(t.teams.map((team) => [team.id, {
+      ...team, played: 0, wins: 0, draws: 0, losses: 0,
+      gf: 0, ga: 0, gd: 0, points: 0,
+    }]));
+
+    for (const m of t.matches) {
+      if (!m.played || m.bye || m.t1 === null || m.t2 === null) continue;
+      const a = rows.get(m.t1);
+      const b = rows.get(m.t2);
+      if (!a || !b) continue;
+      a.played++; b.played++;
+      a.gf += m.s1; a.ga += m.s2;
+      b.gf += m.s2; b.ga += m.s1;
+      if (m.s1 > m.s2) { a.wins++; b.losses++; a.points += 3; }
+      else if (m.s1 < m.s2) { b.wins++; a.losses++; b.points += 3; }
+      else { a.draws++; b.draws++; a.points++; b.points++; }
+    }
+
+    const list = [...rows.values()];
+    for (const r of list) r.gd = r.gf - r.ga;
+    list.sort((a, b) =>
+      b.points - a.points || b.gd - a.gd || b.gf - a.gf ||
+      a.name.localeCompare(b.name, 'de'));
+    return list;
+  }
+
+  function renderStandings(t) {
+    const rows = standingsRows(t);
+    let html = '<h3>Tabelle</h3><table><thead><tr>' +
+      '<th>#</th><th>Team</th><th>Sp</th><th>S</th><th>U</th><th>N</th>' +
+      '<th>Tore</th><th>Diff</th><th>Pkt</th>' +
+      '</tr></thead><tbody>';
+
+    rows.forEach((r, i) => {
+      const diff = r.gd > 0 ? `+${r.gd}` : `${r.gd}`;
+      html += `<tr class="${i === 0 ? 'leader' : ''}">` +
+        `<td class="rank">${i + 1}</td>` +
+        `<td>${escapeHtml(r.name)}</td>` +
+        `<td>${r.played}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td>` +
+        `<td>${r.gf}:${r.ga}</td><td class="gd">${diff}</td>` +
+        `<td class="pts">${r.points}</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    const sorted = [...t.matches].sort((a, b) => a.id - b.id);
+    html += '<div class="matches-grid-title">Spiele</div><div class="matches-grid">' +
+      sorted.map((m) => matchCard(t, m)).join('') + '</div>';
+    return html;
+  }
+
+  function renderSidebar(t) {
+    const liveCard = $('#live-card');
+    const nextList = $('#next-matches');
+
+    if (!t) {
+      liveCard.innerHTML = '<div class="side-title">LIVE</div>' +
+        '<div class="empty-live">Kein Turnier geladen.</div>';
+      nextList.innerHTML = '<div class="next-empty">Kein Turnier geladen.</div>';
+      return;
+    }
+
+    const m = activeMatch();
+    if (m) {
+      liveCard.innerHTML = '<div class="side-title">LIVE</div>' +
+        `<div class="live-team blue"><span>${escapeHtml(teamName(t, m.t1))}</span>` +
+        `<b data-live="s1">${state.currentScore.team1}</b></div>` +
+        `<div class="live-team red"><span>${escapeHtml(teamName(t, m.t2))}</span>` +
+        `<b data-live="s2">${state.currentScore.team2}</b></div>` +
+        `<div class="live-round">${escapeHtml(roundLabel(m))}</div>` +
+        '<button class="btn ghost small" data-view="live">Zum Live-Screen</button>';
+    } else {
+      liveCard.innerHTML = '<div class="side-title">LIVE</div>' +
+        '<div class="empty-live">Kein aktives Spiel.<br>Wähle ein offenes Spiel im Bracket.</div>';
+    }
+
+    const next = t.matches
+      .filter((x) => !x.played && !x.bye && x.t1 !== null && x.t2 !== null &&
+        x.id !== state.activeMatchId)
+      .sort((a, b) =>
+        (a.roundIndex ?? 0) - (b.roundIndex ?? 0) ||
+        (a.matchIndex ?? 0) - (b.matchIndex ?? 0) ||
+        a.id - b.id)
+      .slice(0, 6);
+
+    if (!next.length) {
+      nextList.innerHTML = '<div class="next-empty">Keine offenen Spiele.</div>';
+      return;
+    }
+
+    nextList.innerHTML = next.map((x) =>
+      `<div class="next-item" data-match="${x.id}">` +
+      `<span class="next-round">${escapeHtml(roundLabel(x))}</span>` +
+      `<div class="next-teams"><span>${escapeHtml(teamName(t, x.t1))}</span>` +
+      `<span class="vs-text">vs</span>` +
+      `<span>${escapeHtml(teamName(t, x.t2))}</span></div></div>`).join('');
+  }
+
+  function renderTournament() {
+    const t = state.activeTournament;
+    const bracket = $('#bracket');
+    const standings = $('#standings');
+    const empty = $('#empty-tournament');
+    const champion = $('#champion');
+
+    if (!t) {
+      $('#t-title').textContent = 'Kein Turnier';
+      $('#t-meta').textContent = 'Erstelle ein Turnier im Setup.';
+      champion.classList.add('hidden');
+      bracket.classList.add('hidden');
+      standings.classList.add('hidden');
+      empty.classList.remove('hidden');
+      bracket.innerHTML = '';
+      standings.innerHTML = '';
+      renderSidebar(null);
+      return;
+    }
+
+    const { played, total } = playedCount(t);
+    $('#t-title').textContent = t.name;
+    $('#t-meta').textContent =
+      `${modeLabel(t.mode)} · ${t.teams.length} Teams · ${played}/${total} Spiele`;
+
+    // champion (elimination only)
+    let champ = null;
+    if (t.mode === 'elimination' && t.matches.length) {
+      const maxRound = Math.max(...t.matches.map((m) => m.roundIndex ?? 0));
+      const final = t.matches.find((m) => (m.roundIndex ?? 0) === maxRound);
+      if (final && final.played && final.t1 !== null && final.t2 !== null) {
+        champ = teamName(t, final.s1 > final.s2 ? final.t1 : final.t2);
+      }
+    }
+    if (champ) {
+      champion.innerHTML = `🏆 ${escapeHtml(champ)}`;
+      champion.classList.remove('hidden');
+    } else {
+      champion.classList.add('hidden');
+    }
+
+    empty.classList.add('hidden');
+
+    if (t.mode === 'seeding') {
+      bracket.classList.add('hidden');
+      standings.classList.remove('hidden');
+      standings.innerHTML = renderStandings(t);
+    } else {
+      standings.classList.add('hidden');
+      bracket.classList.remove('hidden');
+      bracket.innerHTML = renderBracket(t);
+    }
+
+    renderSidebar(t);
+  }
+
+  // ── rendering: setup ────────────────────────────────────────────────────
+  function renderSetup() {
+    const list = $('#tournament-list');
+    const sorted = [...state.tournaments].sort((a, b) => b.id - a.id);
+
+    if (!sorted.length) {
+      list.innerHTML = '<div class="empty-list">Noch keine Turniere. ' +
+        'Erstelle eins oder lade das Demo-Turnier.</div>';
+    } else {
+      list.innerHTML = sorted.map((t) => {
+        const { played, total } = playedCount(t);
+        return `<div class="tournament-item">` +
+          `<div class="ti-main"><strong>${escapeHtml(t.name)}</strong>` +
+          `<small>${escapeHtml(modeLabel(t.mode))} · ${t.teams.length} Teams · ` +
+          `${played}/${total} Spiele</small></div>` +
+          `<div class="ti-actions">` +
+          `<button class="btn ghost small" data-action="open" data-id="${t.id}">Öffnen</button>` +
+          `<button class="btn ghost small" data-action="delete" data-id="${t.id}">Löschen</button>` +
+          `</div></div>`;
+      }).join('');
+    }
+    updateMockButton();
+    updateConnNote();
+  }
+
+  function updateMockButton() {
+    const btn = $('#btn-mock');
+    if (!btn) return;
+    if (IS_FILE) {
+      btn.textContent = 'Demo-Modus aktiv (file://)';
+      btn.disabled = true;
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = state.mock
+      ? 'Demo-Modus beenden'
+      : 'Demo-Modus (ohne ESP32)';
+  }
+
+  // ── connection ──────────────────────────────────────────────────────────
+  function wsUrl() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}/ws`;
+  }
+
+  function setConn(status, title) {
+    state.wsStatus = status;
+    const el = $('#conn');
+    el.className = `conn ${status}`;
+    el.title = title;
+    updateConnNote();
+  }
+
+  function updateConnNote() {
+    const note = $('#connection-note');
+    if (!note) return;
+    const text = {
+      online: 'Live mit dem ESP32 verbunden.',
+      offline: 'Offline – läuft der lokale Server?',
+      connecting: 'Verbinde mit dem ESP32 …',
+      demo: 'Demo-Modus – kein ESP32 verbunden.',
+    }[state.wsStatus] || '';
+    note.textContent = text;
+  }
+
+  function scheduleReconnect() {
+    if (state.mock) return;
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = setTimeout(connectWS, 2500);
+  }
+
+  function connectWS() {
+    if (state.mock) {
+      startMock();
+      return;
+    }
+    clearTimeout(state.reconnectTimer);
+    if (state.ws) {
+      try { state.ws.close(); } catch (err) { /* ignore */ }
+    }
+    setConn('connecting', 'Verbinde …');
+    let ws;
+    try {
+      ws = new WebSocket(wsUrl());
+    } catch (err) {
+      setConn('offline', 'Offline');
+      scheduleReconnect();
+      return;
+    }
+    state.ws = ws;
+    state.firstScore = true;
+
+    ws.onopen = () => {
+      setConn('online', 'Live verbunden');
+      state.firstScore = true;
+    };
+    ws.onmessage = (ev) => {
+      let data;
+      try { data = JSON.parse(ev.data); } catch (err) { return; }
+      if (typeof data.team1 !== 'number' || typeof data.team2 !== 'number') return;
+      const silent = state.firstScore;
+      state.firstScore = false;
+      applyScore(data, silent);
+    };
+    ws.onclose = () => {
+      setConn('offline', 'Offline');
+      scheduleReconnect();
+    };
+    ws.onerror = () => setConn('offline', 'Verbindungsfehler');
+  }
+
+  function sendCommand(cmd) {
+    if (state.ws && state.ws.readyState === 1) {
+      state.ws.send(cmd);
+      return true;
+    }
+    toast('Nicht verbunden – läuft der lokale Server?', 'error');
+    return false;
+  }
+
+  function applyScore(data, silent = false) {
+    const prev = state.currentScore;
+    const next = { team1: clampInt(data.team1), team2: clampInt(data.team2) };
+    state.currentScore = next;
+    updateScoreUI();
+    if (silent) return;
+    const blue = next.team1 > prev.team1;
+    const red = next.team2 > prev.team2;
+    if (blue || red) {
+      goalFlash(blue && red ? 'both' : blue ? 'blue' : 'red');
+    }
+  }
+
+  // ── mock socket ─────────────────────────────────────────────────────────
+  class MockSocket {
+    constructor() {
+      this.readyState = 1;
+      this.score = { team1: 0, team2: 0 };
+      setTimeout(() => {
+        this.onopen?.();
+        this.emit();
+      }, 60);
+    }
+    send(cmd) {
+      if (cmd === 't1_add') this.score.team1 = Math.min(255, this.score.team1 + 1);
+      else if (cmd === 't1_sub') this.score.team1 = Math.max(0, this.score.team1 - 1);
+      else if (cmd === 't2_add') this.score.team2 = Math.min(255, this.score.team2 + 1);
+      else if (cmd === 't2_sub') this.score.team2 = Math.max(0, this.score.team2 - 1);
+      else if (cmd === 'reset') this.score = { team1: 0, team2: 0 };
+      else return;
+      this.emit();
+    }
+    emit() {
+      const snapshot = { ...this.score };
+      setTimeout(() => {
+        this.onmessage?.({ data: JSON.stringify(snapshot) });
+      }, 30);
+    }
+    close() {
+      this.readyState = 3;
+    }
+  }
+
+  function startMock() {
+    state.firstScore = true;
+    const mock = new MockSocket();
+    state.ws = mock;
+    setConn('demo', 'Demo-Modus');
+    mock.onopen = () => setConn('demo', 'Demo-Modus');
+    mock.onmessage = (ev) => {
+      let data;
+      try { data = JSON.parse(ev.data); } catch (err) { return; }
+      const silent = state.firstScore;
+      state.firstScore = false;
+      applyScore(data, silent);
+    };
+  }
+
+  // ── goal animation / toast ──────────────────────────────────────────────
+  function goalFlash(side) {
+    const panels = [];
+    if (side === 'blue' || side === 'both') panels.push($('#panel-1'));
+    if (side === 'red' || side === 'both') panels.push($('#panel-2'));
+
+    for (const panel of panels) {
+      if (!panel) continue;
+      panel.classList.remove('goal');
+      void panel.offsetWidth;
+      panel.classList.add('goal');
+      setTimeout(() => panel.classList.remove('goal'), 1100);
+    }
+
+    const overlay = $('#goal-overlay');
+    overlay.style.color = side === 'blue'
+      ? 'var(--blue)'
+      : side === 'red'
+        ? 'var(--red)'
+        : '#fff';
+    overlay.classList.remove('show');
+    void overlay.offsetWidth;
+    overlay.classList.add('show');
+    clearTimeout(state.goalTimer);
+    state.goalTimer = setTimeout(() => overlay.classList.remove('show'), 1200);
+  }
+
+  function toast(message, type = 'info') {
+    const el = $('#toast');
+    el.textContent = message;
+    el.className = `toast show${type === 'error' ? ' error' : ''}`;
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  // ── views / actions ─────────────────────────────────────────────────────
+  function showView(name) {
+    state.view = name;
+    $$('.view').forEach((v) => {
+      v.classList.toggle('active', v.id === `view-${name}`);
+    });
+    $$('.nav-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.view === name);
+    });
+    if (name === 'tournament') renderTournament();
+    else if (name === 'setup') renderSetup();
+    else renderLive();
+  }
+
+  function setTV(on) {
+    state.tv = !!on;
+    document.body.classList.toggle('tv', state.tv);
+    $('#btn-tv').classList.toggle('active', state.tv);
+    if (state.tv && state.view === 'setup') {
+      showView(state.activeTournament ? 'tournament' : 'live');
+    }
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      toast('Vollbild ist in diesem Browser nicht verfügbar.', 'error');
+    }
+  }
+
+  function openTournament(id) {
+    const t = state.tournaments.find((x) => x.id === id);
+    if (!t) return;
+    state.activeTournament = t;
+    state.activeMatchId = null;
+    showView('tournament');
+    renderAll();
+  }
+
+  async function deleteTournament(id) {
+    if (!confirm('Dieses Turnier wirklich löschen?')) return;
+    try {
+      await dbDelete(id);
+    } catch (err) {
+      console.warn(err);
+    }
+    state.memory = state.memory.filter((t) => t.id !== id);
+    if (state.activeTournament?.id === id) {
+      state.activeTournament = null;
+      state.activeMatchId = null;
+    }
+    await loadTournaments(true);
+    renderAll();
+    showView('setup');
+    toast('Turnier gelöscht.');
+  }
+
+  async function createTournament() {
+    const name = $('#t-name').value.trim() || 'Unbenanntes Turnier';
+    const mode = $('#t-mode').value;
+    const teamsRaw = $('#t-teams').value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (teamsRaw.length < 2) {
+      toast('Bitte mindestens 2 Teams eingeben.', 'error');
+      return;
+    }
+
+    const t = {
+      id: Date.now(),
+      name,
+      mode,
+      teams: teamsRaw.map((n, i) => ({ id: i, name: n })),
+      matches: [],
+    };
+    generateMatches(t);
+    await persist(t);
+    state.activeTournament = t;
+    state.activeMatchId = null;
+    $('#t-name').value = '';
+    $('#t-teams').value = '';
+    renderAll();
+    showView('tournament');
+    toast('Turnier erstellt.');
+  }
+
+  async function seedDemo(open = true) {
+    let t = state.tournaments.find((x) => x.demo && x.name === DEMO_NAME);
+    if (!t) {
+      t = {
+        id: Date.now(),
+        name: DEMO_NAME,
+        mode: 'elimination',
+        demo: true,
+        teams: DEMO_TEAMS.map((n, i) => ({ id: i, name: n })),
+        matches: [],
+      };
+      generateMatches(t);
+
+      const first = t.matches
+        .filter((m) => m.roundIndex === 0)
+        .sort((a, b) => a.matchIndex - b.matchIndex);
+
+      const results = [
+        [10, 7], [6, 10], [10, 3],
+      ];
+      results.forEach(([s1, s2], i) => {
+        const m = first[i];
+        if (!m) return;
+        m.s1 = s1;
+        m.s2 = s2;
+        m.played = true;
+        advanceWinner(t, m);
+      });
+
+      await persist(t);
+      t = state.tournaments.find((x) => x.id === t.id) || t;
+    }
+
+    state.activeTournament = t;
+    state.activeMatchId = null;
+    if (open) {
+      renderAll();
+      showView('tournament');
+      toast('Demo-Turnier geladen.');
+    }
+    return t;
+  }
+
+  function playMatch(id) {
+    if (state.tv) return;
+    const t = state.activeTournament;
+    if (!t) return;
+    const m = t.matches.find((x) => x.id === id);
+    if (!m) return;
+    if (m.bye) return;
+    if (m.t1 === null || m.t2 === null) {
+      toast('Die Teams für dieses Spiel stehen noch nicht fest.', 'error');
+      return;
+    }
+    if (m.played) {
+      if (!confirm('Dieses Spiel wurde bereits gespielt. Neu starten und überschreiben?')) {
+        return;
+      }
+    }
+
+    state.activeMatchId = id;
+    state.currentScore = { team1: 0, team2: 0 };
+    state.firstScore = true;
+    updateScoreUI();
+
+    sendCommand('reset');
+    setTimeout(() => { state.firstScore = false; }, 1200);
+
+    renderAll();
+    showView('live');
+  }
+
+  async function saveMatchData() {
+    const t = state.activeTournament;
+    const m = activeMatch();
+    if (!t || !m) return;
+
+    if (t.mode === 'elimination' &&
+        state.currentScore.team1 === state.currentScore.team2) {
+      toast('K.-o.-Spiele können nicht unentschieden enden.', 'error');
+      return;
+    }
+
+    m.s1 = state.currentScore.team1;
+    m.s2 = state.currentScore.team2;
+    m.played = true;
+    m.bye = false;
+
+    if (t.mode === 'elimination' && m.nextMatchId != null) {
+      const next = t.matches.find((x) => x.id === m.nextMatchId);
+      if (next) {
+        next[m.nextSlot] = m.s1 > m.s2 ? m.t1 : m.t2;
+        clearAdvance(t, next);
+      }
+    }
+
+    await persist(t);
+    state.activeMatchId = null;
+    renderAll();
+    showView('tournament');
+    toast('Spiel gespeichert.');
+  }
+
+  // ── bindings ────────────────────────────────────────────────────────────
+  function bind() {
+    $('#btn-save-match').addEventListener('click', saveMatchData);
+    $('#btn-generate').addEventListener('click', createTournament);
+    $('#btn-setup-demo').addEventListener('click', () => seedDemo(true));
+    $('#btn-new-tournament').addEventListener('click', () => {
+      showView('setup');
+      $('#create-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => $('#t-name')?.focus(), 200);
+    });
+    $('#btn-open-tournament').addEventListener('click', () => {
+      showView(state.activeTournament ? 'tournament' : 'setup');
+    });
+    $('#btn-tv').addEventListener('click', () => setTV(!state.tv));
+    $('#btn-fullscreen').addEventListener('click', toggleFullscreen);
+    $('#btn-mock').addEventListener('click', () => {
+      const url = new URL(location.href);
+      if (state.mock) url.searchParams.delete('mock');
+      else url.searchParams.set('mock', '1');
+      location.href = url.toString();
+    });
+
+    for (const id of ['#t-name', '#t-teams']) {
+      $(id).addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') createTournament();
       });
     }
-  </script>
+
+    document.addEventListener('click', (e) => {
+      const viewBtn = e.target.closest('[data-view]');
+      if (viewBtn) {
+        e.preventDefault();
+        showView(viewBtn.dataset.view);
+        return;
+      }
+
+      const cmdBtn = e.target.closest('[data-cmd]');
+      if (cmdBtn) {
+        e.preventDefault();
+        sendCommand(cmdBtn.dataset.cmd);
+        return;
+      }
+
+      const actionBtn = e.target.closest('[data-action]');
+      if (actionBtn) {
+        e.preventDefault();
+        const id = Number(actionBtn.dataset.id);
+        if (actionBtn.dataset.action === 'open') openTournament(id);
+        else if (actionBtn.dataset.action === 'delete') deleteTournament(id);
+        return;
+      }
+
+      const matchEl = e.target.closest('[data-match]');
+      if (matchEl) {
+        e.preventDefault();
+        playMatch(Number(matchEl.dataset.match));
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest('input, select, textarea')) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 't') { setTV(!state.tv); return; }
+      if (key === 'f') { toggleFullscreen(); return; }
+      if (e.key === 'Escape' && state.tv) { setTV(false); return; }
+      if (state.tv) return;
+
+      if (e.key === '1') sendCommand('t1_add');
+      else if (e.key === '2') sendCommand('t2_add');
+      else if (key === 'r') sendCommand('reset');
+    });
+  }
+
+  // ── main render ─────────────────────────────────────────────────────────
+  function renderAll() {
+    renderHeader();
+    renderLive();
+    renderTournament();
+    renderSetup();
+    updateScoreUI();
+    updateMockButton();
+    updateConnNote();
+  }
+
+  async function init() {
+    await openDB();
+    await loadTournaments(true);
+
+    if (params.has('demo')) {
+      const demo = await seedDemo(false);
+      state.activeTournament = demo;
+      state.activeMatchId = null;
+    }
+
+    setTV(params.has('tv') || IS_TV_PATH);
+    bind();
+
+    if (params.has('setup')) {
+      showView('setup');
+    } else if (params.has('demo') || params.has('tv') || IS_TV_PATH) {
+      showView('tournament');
+    } else {
+      showView('live');
+    }
+
+    renderAll();
+    connectWS();
+  }
+
+  // expose a tiny debug handle (useful for local preview / screenshots)
+  window.__TM = { state, showView, seedDemo, setTV, renderAll };
+
+  init().catch((err) => {
+    console.error(err);
+    toast('Dashboard konnte nicht initialisiert werden.', 'error');
+  });
+})();
+
+</script>
 </body>
 </html>
+
 )rawliteral";

@@ -1,0 +1,35 @@
+Qty,Value,Footprint,References,Description
+1,1000uF/10V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,C15,LED strip bulk capacitor
+11,100nF,Capacitor_THT.pretty/C_Disc_D5.0mm_W2.5mm_P5.00mm,C10 C11 C12 C13 C2 C4 C5 C6 C7 C8 C9,Input HF decoupling
+1,100uF/50V,Capacitor_THT.pretty/CP_Radial_D8.0mm_P3.50mm,C14,Stepper VMOT bulk capacitor
+5,10k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,R10 R2 R3 R4 R5,S1 pull-up
+1,12-24V IN,TerminalBlock.pretty/TerminalBlock_bornier-2_P5.08mm,J1,Screw terminal 12-24 V input
+5,1k,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,R1 R6 R7 R8 R9,Power LED resistor
+2,330R,Resistor_THT.pretty/R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,R14 R15,Blue LED data series
+1,470uF/10V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,C3,5 V bulk capacitor
+1,470uF/50V,Capacitor_THT.pretty/CP_Radial_D10.0mm_P5.00mm,C1,Input bulk capacitor
+1,5V EXT,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,J2,External 5 V input
+1,5V SEL,Connector_PinHeader_2.54mm.pretty/PinHeader_1x03_P2.54mm_Vertical,JP1,"5 V source select: 1-2 internal, 2-3 external"
+1,74AHCT125,Package_DIP.pretty/DIP-14_W7.62mm,U3,WS2812 level shifter
+1,74HC14,Package_DIP.pretty/DIP-14_W7.62mm,U2,"Schmitt trigger, inverting"
+1,A4988 BOT,Connector_PinSocket_2.54mm.pretty/PinSocket_1x08_P2.54mm_Vertical,J4,A4988/DRV8825 right row
+1,A4988 TOP,Connector_PinSocket_2.54mm.pretty/PinSocket_1x08_P2.54mm_Vertical,J3,A4988/DRV8825 left row
+1,ESP32 J2,Connector_PinSocket_2.54mm.pretty/PinSocket_1x19_P2.54mm_Vertical,J12,ESP32-DevKitC J2 socket
+1,ESP32 J3,Connector_PinSocket_2.54mm.pretty/PinSocket_1x19_P2.54mm_Vertical,J13,ESP32-DevKitC J3 socket
+1,FUSE 5x20 3A,Fuse.pretty/Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open,F1,5x20 mm fuse holder
+1,GREEN,LED_THT.pretty/LED_D5.0mm,LED1,Power LED
+1,LED BLUE,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x03_P3.50mm_Horizontal,J10,WS2812 blue strip
+1,LED RED,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x03_P3.50mm_Horizontal,J11,WS2812 red strip
+1,MOTOR,TerminalBlock_4Ucon.pretty/TerminalBlock_4Ucon_1x04_P3.50mm_Horizontal,J5,Stepper motor 1A 1B 2A 2B
+1,MS1,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,JP3,Microstep MS1 to +5 V
+1,MS2,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,JP4,Microstep MS2 to +5 V
+1,MS3,Connector_PinHeader_2.54mm.pretty/PinHeader_1x02_P2.54mm_Vertical,JP5,Microstep MS3 to +5 V
+1,P6KE33A,Diode_THT.pretty/D_DO-15_P10.16mm_Horizontal,D2,TVS transient protection
+1,RESET,Button_Switch_THT.pretty/SW_PUSH_6mm,SW1,Reset button
+1,S1,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,J6,Goal 1 beam A
+1,S2,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,J7,Goal 1 beam B
+1,S3,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,J8,Goal 2 beam A
+1,S4,Connector_PinSocket_2.54mm.pretty/PinSocket_1x03_P2.54mm_Vertical,J9,Goal 2 beam B
+1,SENSOR VCC,Connector_PinHeader_2.54mm.pretty/PinHeader_1x03_P2.54mm_Vertical,JP2,"1-2 = 3V3, 2-3 = 5V"
+1,SR560,Diode_THT.pretty/D_DO-201_P15.24mm_Horizontal,D1,Reverse polarity protection
+1,TSR2-2450,Package_TO_SOT_THT.pretty/TO-220-3_Vertical,U1,5 V 2 A switching regulator
