@@ -33,6 +33,7 @@
       <nav class="nav">
         <button class="nav-btn active" data-view="live">Live</button>
         <button class="nav-btn" data-view="tournament">Turnier</button>
+        <button class="nav-btn" data-view="players">Spieler</button>
         <button class="nav-btn" data-view="setup">Setup</button>
         <span class="nav-sep"></span>
         <button class="icon-btn" id="btn-tv" title="TV-Modus (T)">TV</button>
@@ -118,6 +119,27 @@
         </div>
       </section>
 
+      <!-- ───────────────────────── SPIELER ─────────────────────── -->
+      <section class="view view-players" id="view-players">
+        <div class="players-head">
+          <div>
+            <h2>Spieler</h2>
+            <p class="muted">Profile, Platzierungen und Statistiken.</p>
+          </div>
+          <div class="players-tools">
+            <input type="search" id="player-filter" placeholder="Spieler filtern…" autocomplete="off">
+            <div class="player-create operator-only">
+              <input type="text" id="new-player-name" placeholder="Neuer Spieler…" autocomplete="off">
+              <button class="btn primary" id="btn-create-player" type="button">Anlegen</button>
+            </div>
+          </div>
+        </div>
+        <div class="players-layout">
+          <div id="player-list" class="player-grid"></div>
+          <aside id="player-detail" class="player-detail"></aside>
+        </div>
+      </section>
+
       <!-- ───────────────────────── SETUP ───────────────────────── -->
       <section class="view view-setup" id="view-setup">
         <div class="setup-head">
@@ -148,12 +170,21 @@
               <option value="seeding">Jeder gegen jeden (Tabelle)</option>
             </select>
 
-            <label for="t-teams">Teams / Spieler (kommagetrennt)</label>
-            <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi" autocomplete="off">
-            <p class="fine">Mindestens 2 Teams. Bei K.-o. werden Freilose automatisch verteilt.</p>
+            <label for="player-search">Spieler suchen</label>
+            <div class="player-picker">
+              <input type="text" id="player-search" placeholder="Spieler suchen oder neu anlegen…" autocomplete="off">
+              <div id="player-suggestions" class="suggestions hidden"></div>
+            </div>
+            <div id="team-builder" class="team-builder"></div>
+            <div class="team-builder-bar">
+              <button class="btn ghost small" id="btn-add-team" type="button" disabled>+ Team hinzufügen</button>
+              <span class="fine">1–2 Spieler pro Team</span>
+            </div>
+            <div id="draft-teams" class="draft-teams"></div>
+            <p class="fine">Für 2 gegen 2 zwei Spieler pro Team wählen. Teams brauchen keinen Namen; alle Teams sollten gleich groß sein.</p>
 
             <div class="import-box">
-              <div class="import-title">Teams / Spieler übernehmen</div>
+              <div class="import-title">Teams übernehmen</div>
               <label for="t-source">Quellturnier</label>
               <select id="t-source">
                 <option value="">— Turnier wählen —</option>

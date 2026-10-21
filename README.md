@@ -18,10 +18,19 @@ python3 server.py
 - **Demo-Turnier:** <http://localhost:8000/?demo=1&tv=1>
 - **Gruppenphase:** zufälliger, ausbalancierter Spielplan mit Spieltagen und
   rotierenden Freilosen („Spielplan mischen“ vor dem ersten Spiel).
-- **Teams übernehmen:** aus einem bestehenden Turnier alle oder die Top N nach
-  Rangliste ins neue Turnier übernehmen.
+- **Spielerprofile:** jeder Spieler bekommt ein Profil im Browser-Speicher;
+  Übersicht mit Platzierungen, Toren, Tordifferenz, Ø Toren und Turnierhistorie.
+- **Teams für 2 gegen 2:** beim Anlegen 1–2 Spieler zu einem Turnier-Team
+  gruppieren. Teams brauchen keinen Namen und werden automatisch als
+  „Alice & Bob“ angezeigt.
+- **Spielerauswahl:** beim Tippen erscheinen Vorschläge, ein Klick legt den
+  Spieler in den Team-Slot; neue Namen werden direkt als Profil angelegt.
+- **Teams übernehmen:** aus einem bestehenden Turnier alle oder die Top N Teams
+  inklusive Gruppierung ins neue Turnier übernehmen.
 
 ![TV-Ansicht](dashboard/dashboard_tv.png)
+
+![Spielerprofile](dashboard/dashboard_players.png)
 
 Details: [dashboard/README.md](dashboard/README.md)
 
@@ -35,7 +44,7 @@ pio run -t upload
 - Nach Dashboard-Änderungen: `python3 dashboard/build_site.py` (schreibt
   `src/site.cpp`), dann flashen.
 - Partition: `huge_app.csv` (3 MB App, 1 MB SPIFFS), weil die Firmware inkl.
-  Dashboard ca. 1,4 MB groß ist.
+  Dashboard ca. 1,46 MB groß ist.
 - Tor 1: J6 / S1 → GPIO27, Tor 2: J8 / S3 → GPIO32. Die 74HC14 invertieren:
   Strahl blockiert = GPIO HIGH. J7/J9 sind Reserve.
 
