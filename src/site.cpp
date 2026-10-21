@@ -715,6 +715,34 @@ kbd {
 .card input:focus, .card select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(62, 166, 255, .14); }
 .fine { color: var(--muted); font-size: .78rem; line-height: 1.5; }
 
+.import-box {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .16);
+}
+.import-title {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.import-box label { margin-top: 0; }
+.import-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.import-row select, .import-row input[type="number"] { width: auto; }
+.import-row select { flex: 1 1 auto; min-width: 0; }
+.import-row input[type="number"] { flex: 0 0 88px; }
+.import-row .btn { flex: 0 0 auto; }
+.import-box .fine { margin: 8px 0 0; }
+
 .tournament-list { display: flex; flex-direction: column; gap: 10px; }
 .tournament-item {
   display: flex;
@@ -813,6 +841,12 @@ body.tv .score { font-size: clamp(7rem, 18vw, 22rem); }
   .live-stage { grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr) minmax(0, 1fr); }
   .tournament-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28vw, 340px); }
   .brand-sub { max-width: 26vw; }
+}
+
+@media (max-width: 620px) {
+  .import-row { flex-wrap: wrap; }
+  .import-row input[type="number"] { flex: 1 1 100%; }
+  .import-row .btn { flex: 1 1 100%; }
 }
 
 @media (max-width: 900px) {
@@ -1003,9 +1037,26 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
               <option value="seeding">Jeder gegen jeden (Tabelle)</option>
             </select>
 
-            <label for="t-teams">Teams (kommagetrennt)</label>
+            <label for="t-teams">Teams / Spieler (kommagetrennt)</label>
             <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi" autocomplete="off">
             <p class="fine">Mindestens 2 Teams. Bei K.-o. werden Freilose automatisch verteilt.</p>
+
+            <div class="import-box">
+              <div class="import-title">Teams / Spieler übernehmen</div>
+              <label for="t-source">Quellturnier</label>
+              <select id="t-source">
+                <option value="">— Turnier wählen —</option>
+              </select>
+              <div class="import-row">
+                <select id="t-source-mode" aria-label="Auswahlmodus">
+                  <option value="all">Alle Teams</option>
+                  <option value="top">Top N</option>
+                </select>
+                <input type="number" id="t-source-count" class="hidden" min="1" value="4" inputmode="numeric" aria-label="Anzahl der Top-Teams">
+                <button class="btn ghost" id="btn-import-teams" type="button">Übernehmen</button>
+              </div>
+              <p class="fine" id="import-hint">Wähle ein Quellturnier.</p>
+            </div>
 
             <button class="btn primary big" id="btn-generate">Turnier erstellen</button>
           </div>
@@ -1528,6 +1579,72 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
     return list;
   }
 
+  // Ranking used when importing teams into a new tournament.
+  // Seeding: current table. Elimination: champion, finalist, furthest round,
+  // wins, goal difference. If no real match has been played, registration order.
+  function tournamentRanking(t) {
+    if (!t) return [];
+    if (!t.matches.some((m) => m.played && !m.bye)) {
+      return [...t.teams];
+    }
+    if (t.mode === 'seeding') {
+      return standingsRows(t);
+    }
+
+    const stats = new Map();
+    for (const team of t.teams) {
+      stats.set(team.id, {
+        team, wins: 0, losses: 0, gd: 0, reached: -1,
+        champion: false, finalist: false,
+      });
+    }
+
+    for (const m of t.matches) {
+      const a = m.t1 !== null ? stats.get(m.t1) : null;
+      const b = m.t2 !== null ? stats.get(m.t2) : null;
+      const round = m.roundIndex ?? 0;
+      if (a) a.reached = Math.max(a.reached, round);
+      if (b) b.reached = Math.max(b.reached, round);
+      if (!a || !b || !m.played) continue;
+
+      if (m.s1 > m.s2) {
+        a.wins++; b.losses++;
+        a.gd += m.s1 - m.s2;
+        b.gd += m.s2 - m.s1;
+      } else if (m.s2 > m.s1) {
+        b.wins++; a.losses++;
+        b.gd += m.s2 - m.s1;
+        a.gd += m.s1 - m.s2;
+      }
+    }
+
+    const finalRound = t.matches.length
+      ? Math.max(...t.matches.map((m) => m.roundIndex ?? 0))
+      : -1;
+    const final = finalRound >= 0
+      ? t.matches.find((m) => (m.roundIndex ?? 0) === finalRound &&
+        m.played && m.t1 !== null && m.t2 !== null)
+      : null;
+    if (final) {
+      const champ = final.s1 > final.s2 ? final.t1
+        : final.s2 > final.s1 ? final.t2 : null;
+      const loser = final.s1 > final.s2 ? final.t2
+        : final.s2 > final.s1 ? final.t1 : null;
+      if (champ !== null) stats.get(champ).champion = true;
+      if (loser !== null) stats.get(loser).finalist = true;
+    }
+
+    return [...stats.values()]
+      .sort((a, b) =>
+        Number(b.champion) - Number(a.champion) ||
+        Number(b.finalist) - Number(a.finalist) ||
+        b.reached - a.reached ||
+        b.wins - a.wins ||
+        b.gd - a.gd ||
+        a.team.name.localeCompare(b.team.name, 'de'))
+      .map((x) => x.team);
+  }
+
   function renderStandings(t) {
     const rows = standingsRows(t);
     let html = '<h3>Tabelle</h3><table><thead><tr>' +
@@ -1688,6 +1805,79 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
   }
 
   // ── rendering: setup ────────────────────────────────────────────────────
+  function populateSourceSelect() {
+    const select = $('#t-source');
+    if (!select) return;
+    const current = select.value;
+    const sorted = [...state.tournaments].sort((a, b) => b.id - a.id);
+    select.innerHTML = '<option value="">— Turnier wählen —</option>' +
+      sorted.map((t) =>
+        `<option value="${t.id}">${escapeHtml(t.name)} · ` +
+        `${escapeHtml(modeLabel(t.mode))} · ${t.teams.length} Teams</option>`).join('');
+    if (current && sorted.some((t) => String(t.id) === current)) {
+      select.value = current;
+    }
+    updateSourceControls();
+  }
+
+  function updateSourceControls() {
+    const sourceSelect = $('#t-source');
+    const modeSelect = $('#t-source-mode');
+    const countInput = $('#t-source-count');
+    const importBtn = $('#btn-import-teams');
+    const hint = $('#import-hint');
+    if (!sourceSelect || !modeSelect || !countInput || !importBtn || !hint) return;
+
+    const source = state.tournaments.find(
+      (t) => String(t.id) === sourceSelect.value);
+    const topMode = modeSelect.value === 'top';
+
+    countInput.classList.toggle('hidden', !topMode);
+    countInput.disabled = !source;
+    importBtn.disabled = !source;
+
+    if (!source) {
+      hint.textContent = state.tournaments.length
+        ? 'Wähle ein Quellturnier.'
+        : 'Noch kein Quellturnier vorhanden.';
+      return;
+    }
+
+    countInput.max = String(source.teams.length);
+    const count = Math.min(
+      Math.max(1, parseInt(countInput.value, 10) || 1),
+      source.teams.length);
+    hint.textContent = topMode
+      ? `Übernimmt die Top ${count} von ${source.teams.length} Teams.`
+      : `Übernimmt alle ${source.teams.length} Teams in Ranglisten-Reihenfolge.`;
+  }
+
+  function importTeamsFromSource() {
+    const sourceSelect = $('#t-source');
+    const source = state.tournaments.find(
+      (t) => String(t.id) === sourceSelect.value);
+    if (!source) {
+      toast('Bitte zuerst ein Quellturnier wählen.', 'error');
+      return;
+    }
+
+    const topMode = $('#t-source-mode').value === 'top';
+    let count = source.teams.length;
+    if (topMode) {
+      count = parseInt($('#t-source-count').value, 10) || 1;
+    }
+    count = Math.max(1, Math.min(count, source.teams.length));
+
+    const ranked = tournamentRanking(source).slice(0, count);
+    $('#t-teams').value = ranked.map((x) => x.name).join(', ');
+    if (!$('#t-name').value.trim()) {
+      $('#t-name').value = `${source.name} – Neu`;
+    }
+    toast(`${ranked.length} Team${ranked.length === 1 ? '' : 's'} übernommen.`);
+    $('#t-teams').focus();
+    updateSourceControls();
+  }
+
   function renderSetup() {
     const list = $('#tournament-list');
     const sorted = [...state.tournaments].sort((a, b) => b.id - a.id);
@@ -1710,6 +1900,7 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
     }
     updateMockButton();
     updateConnNote();
+    populateSourceSelect();
   }
 
   function updateMockButton() {
@@ -2122,6 +2313,10 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
     $('#btn-save-match').addEventListener('click', saveMatchData);
     $('#btn-shuffle-schedule').addEventListener('click', shuffleSchedule);
     $('#btn-generate').addEventListener('click', createTournament);
+    $('#t-source').addEventListener('change', updateSourceControls);
+    $('#t-source-mode').addEventListener('change', updateSourceControls);
+    $('#t-source-count').addEventListener('input', updateSourceControls);
+    $('#btn-import-teams').addEventListener('click', importTeamsFromSource);
     $('#btn-setup-demo').addEventListener('click', () => seedDemo(true));
     $('#btn-new-tournament').addEventListener('click', () => {
       showView('setup');

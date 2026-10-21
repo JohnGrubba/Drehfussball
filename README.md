@@ -18,6 +18,8 @@ python3 server.py
 - **Demo-Turnier:** <http://localhost:8000/?demo=1&tv=1>
 - **Gruppenphase:** zufälliger, ausbalancierter Spielplan mit Spieltagen und
   rotierenden Freilosen („Spielplan mischen“ vor dem ersten Spiel).
+- **Teams übernehmen:** aus einem bestehenden Turnier alle oder die Top N nach
+  Rangliste ins neue Turnier übernehmen.
 
 ![TV-Ansicht](dashboard/dashboard_tv.png)
 

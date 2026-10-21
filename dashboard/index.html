@@ -148,9 +148,26 @@
               <option value="seeding">Jeder gegen jeden (Tabelle)</option>
             </select>
 
-            <label for="t-teams">Teams (kommagetrennt)</label>
+            <label for="t-teams">Teams / Spieler (kommagetrennt)</label>
             <input type="text" id="t-teams" placeholder="Alice/Bob, Charlie/Dave, Eve/Frank, Grace/Heidi" autocomplete="off">
             <p class="fine">Mindestens 2 Teams. Bei K.-o. werden Freilose automatisch verteilt.</p>
+
+            <div class="import-box">
+              <div class="import-title">Teams / Spieler übernehmen</div>
+              <label for="t-source">Quellturnier</label>
+              <select id="t-source">
+                <option value="">— Turnier wählen —</option>
+              </select>
+              <div class="import-row">
+                <select id="t-source-mode" aria-label="Auswahlmodus">
+                  <option value="all">Alle Teams</option>
+                  <option value="top">Top N</option>
+                </select>
+                <input type="number" id="t-source-count" class="hidden" min="1" value="4" inputmode="numeric" aria-label="Anzahl der Top-Teams">
+                <button class="btn ghost" id="btn-import-teams" type="button">Übernehmen</button>
+              </div>
+              <p class="fine" id="import-hint">Wähle ein Quellturnier.</p>
+            </div>
 
             <button class="btn primary big" id="btn-generate">Turnier erstellen</button>
           </div>

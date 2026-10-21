@@ -505,6 +505,72 @@
     return list;
   }
 
+  // Ranking used when importing teams into a new tournament.
+  // Seeding: current table. Elimination: champion, finalist, furthest round,
+  // wins, goal difference. If no real match has been played, registration order.
+  function tournamentRanking(t) {
+    if (!t) return [];
+    if (!t.matches.some((m) => m.played && !m.bye)) {
+      return [...t.teams];
+    }
+    if (t.mode === 'seeding') {
+      return standingsRows(t);
+    }
+
+    const stats = new Map();
+    for (const team of t.teams) {
+      stats.set(team.id, {
+        team, wins: 0, losses: 0, gd: 0, reached: -1,
+        champion: false, finalist: false,
+      });
+    }
+
+    for (const m of t.matches) {
+      const a = m.t1 !== null ? stats.get(m.t1) : null;
+      const b = m.t2 !== null ? stats.get(m.t2) : null;
+      const round = m.roundIndex ?? 0;
+      if (a) a.reached = Math.max(a.reached, round);
+      if (b) b.reached = Math.max(b.reached, round);
+      if (!a || !b || !m.played) continue;
+
+      if (m.s1 > m.s2) {
+        a.wins++; b.losses++;
+        a.gd += m.s1 - m.s2;
+        b.gd += m.s2 - m.s1;
+      } else if (m.s2 > m.s1) {
+        b.wins++; a.losses++;
+        b.gd += m.s2 - m.s1;
+        a.gd += m.s1 - m.s2;
+      }
+    }
+
+    const finalRound = t.matches.length
+      ? Math.max(...t.matches.map((m) => m.roundIndex ?? 0))
+      : -1;
+    const final = finalRound >= 0
+      ? t.matches.find((m) => (m.roundIndex ?? 0) === finalRound &&
+        m.played && m.t1 !== null && m.t2 !== null)
+      : null;
+    if (final) {
+      const champ = final.s1 > final.s2 ? final.t1
+        : final.s2 > final.s1 ? final.t2 : null;
+      const loser = final.s1 > final.s2 ? final.t2
+        : final.s2 > final.s1 ? final.t1 : null;
+      if (champ !== null) stats.get(champ).champion = true;
+      if (loser !== null) stats.get(loser).finalist = true;
+    }
+
+    return [...stats.values()]
+      .sort((a, b) =>
+        Number(b.champion) - Number(a.champion) ||
+        Number(b.finalist) - Number(a.finalist) ||
+        b.reached - a.reached ||
+        b.wins - a.wins ||
+        b.gd - a.gd ||
+        a.team.name.localeCompare(b.team.name, 'de'))
+      .map((x) => x.team);
+  }
+
   function renderStandings(t) {
     const rows = standingsRows(t);
     let html = '<h3>Tabelle</h3><table><thead><tr>' +
@@ -665,6 +731,79 @@
   }
 
   // ── rendering: setup ────────────────────────────────────────────────────
+  function populateSourceSelect() {
+    const select = $('#t-source');
+    if (!select) return;
+    const current = select.value;
+    const sorted = [...state.tournaments].sort((a, b) => b.id - a.id);
+    select.innerHTML = '<option value="">— Turnier wählen —</option>' +
+      sorted.map((t) =>
+        `<option value="${t.id}">${escapeHtml(t.name)} · ` +
+        `${escapeHtml(modeLabel(t.mode))} · ${t.teams.length} Teams</option>`).join('');
+    if (current && sorted.some((t) => String(t.id) === current)) {
+      select.value = current;
+    }
+    updateSourceControls();
+  }
+
+  function updateSourceControls() {
+    const sourceSelect = $('#t-source');
+    const modeSelect = $('#t-source-mode');
+    const countInput = $('#t-source-count');
+    const importBtn = $('#btn-import-teams');
+    const hint = $('#import-hint');
+    if (!sourceSelect || !modeSelect || !countInput || !importBtn || !hint) return;
+
+    const source = state.tournaments.find(
+      (t) => String(t.id) === sourceSelect.value);
+    const topMode = modeSelect.value === 'top';
+
+    countInput.classList.toggle('hidden', !topMode);
+    countInput.disabled = !source;
+    importBtn.disabled = !source;
+
+    if (!source) {
+      hint.textContent = state.tournaments.length
+        ? 'Wähle ein Quellturnier.'
+        : 'Noch kein Quellturnier vorhanden.';
+      return;
+    }
+
+    countInput.max = String(source.teams.length);
+    const count = Math.min(
+      Math.max(1, parseInt(countInput.value, 10) || 1),
+      source.teams.length);
+    hint.textContent = topMode
+      ? `Übernimmt die Top ${count} von ${source.teams.length} Teams.`
+      : `Übernimmt alle ${source.teams.length} Teams in Ranglisten-Reihenfolge.`;
+  }
+
+  function importTeamsFromSource() {
+    const sourceSelect = $('#t-source');
+    const source = state.tournaments.find(
+      (t) => String(t.id) === sourceSelect.value);
+    if (!source) {
+      toast('Bitte zuerst ein Quellturnier wählen.', 'error');
+      return;
+    }
+
+    const topMode = $('#t-source-mode').value === 'top';
+    let count = source.teams.length;
+    if (topMode) {
+      count = parseInt($('#t-source-count').value, 10) || 1;
+    }
+    count = Math.max(1, Math.min(count, source.teams.length));
+
+    const ranked = tournamentRanking(source).slice(0, count);
+    $('#t-teams').value = ranked.map((x) => x.name).join(', ');
+    if (!$('#t-name').value.trim()) {
+      $('#t-name').value = `${source.name} – Neu`;
+    }
+    toast(`${ranked.length} Team${ranked.length === 1 ? '' : 's'} übernommen.`);
+    $('#t-teams').focus();
+    updateSourceControls();
+  }
+
   function renderSetup() {
     const list = $('#tournament-list');
     const sorted = [...state.tournaments].sort((a, b) => b.id - a.id);
@@ -687,6 +826,7 @@
     }
     updateMockButton();
     updateConnNote();
+    populateSourceSelect();
   }
 
   function updateMockButton() {
@@ -1099,6 +1239,10 @@
     $('#btn-save-match').addEventListener('click', saveMatchData);
     $('#btn-shuffle-schedule').addEventListener('click', shuffleSchedule);
     $('#btn-generate').addEventListener('click', createTournament);
+    $('#t-source').addEventListener('change', updateSourceControls);
+    $('#t-source-mode').addEventListener('change', updateSourceControls);
+    $('#t-source-count').addEventListener('input', updateSourceControls);
+    $('#btn-import-teams').addEventListener('click', importTeamsFromSource);
     $('#btn-setup-demo').addEventListener('click', () => seedDemo(true));
     $('#btn-new-tournament').addEventListener('click', () => {
       showView('setup');

@@ -704,6 +704,34 @@ kbd {
 .card input:focus, .card select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(62, 166, 255, .14); }
 .fine { color: var(--muted); font-size: .78rem; line-height: 1.5; }
 
+.import-box {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .16);
+}
+.import-title {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.import-box label { margin-top: 0; }
+.import-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.import-row select, .import-row input[type="number"] { width: auto; }
+.import-row select { flex: 1 1 auto; min-width: 0; }
+.import-row input[type="number"] { flex: 0 0 88px; }
+.import-row .btn { flex: 0 0 auto; }
+.import-box .fine { margin: 8px 0 0; }
+
 .tournament-list { display: flex; flex-direction: column; gap: 10px; }
 .tournament-item {
   display: flex;
@@ -802,6 +830,12 @@ body.tv .score { font-size: clamp(7rem, 18vw, 22rem); }
   .live-stage { grid-template-columns: minmax(0, 1fr) minmax(150px, .45fr) minmax(0, 1fr); }
   .tournament-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28vw, 340px); }
   .brand-sub { max-width: 26vw; }
+}
+
+@media (max-width: 620px) {
+  .import-row { flex-wrap: wrap; }
+  .import-row input[type="number"] { flex: 1 1 100%; }
+  .import-row .btn { flex: 1 1 100%; }
 }
 
 @media (max-width: 900px) {

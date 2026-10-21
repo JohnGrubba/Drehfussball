@@ -87,6 +87,24 @@ pio run -t upload          # Firmware mit neuem Dashboard flashen
 - **Tastatur:** `1`/`2` Tor, `R` Reset, `T` TV, `F` Vollbild.
 - **Offline:** keine externen Fonts, Icons oder CDNs — läuft im ESP32-AP.
 
+## Teams aus einem anderen Turnier übernehmen
+
+Im Setup unter „Neues Turnier“:
+
+1. **Quellturnier** wählen.
+2. **„Alle Teams“** oder **„Top N“** mit Anzahl wählen.
+3. **„Übernehmen“** füllt das Feld „Teams / Spieler“ — dort lässt sich die
+   Liste danach noch bearbeiten.
+
+Die Rangliste des Quellturniers:
+
+- **Jeder gegen jeden:** aktuelle Tabelle (Punkte, Tordifferenz, Tore).
+- **K.-o.:** Sieger, Finalist, erreichte Runde, Siege, Tordifferenz.
+- **Noch keine Ergebnisse:** Reihenfolge der Eintragung.
+
+Es werden nur die Namen übernommen, keine Ergebnisse. Ist das Namensfeld leer,
+wird automatisch „<Quellturnier> – Neu“ vorgeschlagen.
+
 ## Gruppenphase / Spielreihenfolge
 
 „Jeder gegen jeden“ wird nicht mehr in Eintragungsreihenfolge abgearbeitet,
