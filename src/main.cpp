@@ -5,7 +5,6 @@
 #include <FastLED.h>
 #include <WiFi.h>
 #include <driver/gpio.h>
-#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -46,17 +45,17 @@ FastAccelStepper *stepper = NULL;
 //   beam free      -> GPIO LOW
 //   beam blocked   -> GPIO HIGH
 //
-// The ball is in a closed chute, so a single beam is enough.  A valid goal is
-// a beam occlusion between MIN_BLOCK_US and MAX_BLOCK_US.  Everything shorter
-// is noise/dirt, everything longer is a stuck ball or a broken sensor.
-#define SENSOR1_PIN 4
-#define SENSOR2_PIN 22
+// The ball is in a closed chute, so a single beam is enough.  Every beam
+// interruption (the ball entering the chute) counts as a goal.
+#define SENSOR1_PIN 22
+#define SENSOR2_PIN 4
 
-#define MIN_BLOCK_US 2000UL        // 2 ms
-#define MAX_BLOCK_US 5000000UL     // 500 ms
-#define GOAL_COOLDOWN_US 1500000UL // 1.5 s per side
+// After a goal BOTH beams are locked out for one second: the GPIO interrupts of
+// both sensors are disabled, so a single ball can never score twice (e.g. on the
+// blue and the red side one after another).
+#define SENSOR_LOCKOUT_MS 1000
 
-// Set to 1 to print every beam edge / duration to Serial.
+// Set to 1 to print every accepted goal to Serial.
 #define DEBUG_SENSORS 1
 
 CRGB goals1[NUM_LEDS] = {};
@@ -78,7 +77,6 @@ struct BeamEvent
 {
   uint8_t goal; // 0 = blue, 1 = red
   bool blocked;
-  uint32_t us;
 };
 
 static QueueHandle_t sensorQueue = nullptr;
@@ -202,14 +200,13 @@ void StartupAnimationLEDS()
 }
 
 // ─────────────────────────────────────────────
-// IR sensor ISR + task
+// IR sensor ISRs + task
 // ─────────────────────────────────────────────
 static inline void IRAM_ATTR pushBeamEvent(uint8_t goal, uint8_t pin)
 {
   BeamEvent ev;
   ev.goal = goal;
   ev.blocked = (gpio_get_level((gpio_num_t)pin) != 0); // 74HC14 inverts
-  ev.us = (uint32_t)esp_timer_get_time();
 
   BaseType_t woken = pdFALSE;
   xQueueSendFromISR(sensorQueue, &ev, &woken);
@@ -221,14 +218,40 @@ static inline void IRAM_ATTR pushBeamEvent(uint8_t goal, uint8_t pin)
 void IRAM_ATTR isrGoal1() { pushBeamEvent(0, SENSOR1_PIN); }
 void IRAM_ATTR isrGoal2() { pushBeamEvent(1, SENSOR2_PIN); }
 
+// Enable/disable the edge interrupts of BOTH beams.  While disabled no ISR can
+// run and therefore no event can enter the queue.
+static void setBeamInterrupts(bool enable)
+{
+  if (enable)
+  {
+    gpio_intr_enable((gpio_num_t)SENSOR1_PIN);
+    gpio_intr_enable((gpio_num_t)SENSOR2_PIN);
+  }
+  else
+  {
+    gpio_intr_disable((gpio_num_t)SENSOR1_PIN);
+    gpio_intr_disable((gpio_num_t)SENSOR2_PIN);
+  }
+}
+
+// Re-read the beam levels after the lockout, because edges that happened while
+// the interrupts were disabled were never delivered.
+static void resyncBeams(bool blocked[2])
+{
+  const uint8_t pins[2] = {SENSOR1_PIN, SENSOR2_PIN};
+
+  for (uint8_t g = 0; g < 2; g++)
+  {
+    // 74HC14 inverts: HIGH means the beam is blocked.
+    blocked[g] = (gpio_get_level((gpio_num_t)pins[g]) != 0);
+  }
+}
+
 static void sensorTask(void *)
 {
   BeamEvent ev;
 
   bool blocked[2] = {false, false};
-  uint32_t blockUs[2] = {0, 0};
-  bool cooldownActive[2] = {false, false};
-  uint32_t cooldownUntil[2] = {0, 0};
 
   for (;;)
   {
@@ -239,42 +262,40 @@ static void sensorTask(void *)
 
     const uint8_t g = ev.goal;
 
-    if (ev.blocked)
+    if (!ev.blocked)
     {
-      if (!blocked[g])
-      {
-        blocked[g] = true;
-        blockUs[g] = ev.us;
-      }
+      // Trailing edge, the ball left the beam.  Nothing to score.
+      blocked[g] = false;
       continue;
     }
 
-    if (!blocked[g])
+    if (blocked[g])
     {
+      // Duplicate of a beam that was already blocked when the lockout ended.
       continue;
     }
 
-    blocked[g] = false;
-    const uint32_t duration = ev.us - blockUs[g];
-    const bool valid = (duration >= MIN_BLOCK_US && duration <= MAX_BLOCK_US);
-    // Wrap-safe cooldown check (works across the 32-bit micros() wrap).
-    const bool ready =
-        !cooldownActive[g] || ((int32_t)(ev.us - cooldownUntil[g]) >= 0);
+    blocked[g] = true;
+
+    // Any beam interruption counts as a goal.
+    if (g == 0)
+      goal1Scored = true;
+    else
+      goal2Scored = true;
 
 #if DEBUG_SENSORS
-    Serial.printf("S%u %s %lu us\n", g + 1, (valid && ready) ? "GOAL" : "reject",
-                  (unsigned long)duration);
+    Serial.printf("S%u GOAL -> lockout %u ms\n", g + 1, SENSOR_LOCKOUT_MS);
 #endif
 
-    if (valid && ready)
-    {
-      if (g == 0)
-        goal1Scored = true;
-      else
-        goal2Scored = true;
-      cooldownActive[g] = true;
-      cooldownUntil[g] = ev.us + GOAL_COOLDOWN_US;
-    }
+    // Lock out BOTH sensors for one second.  The other side cannot fire while
+    // the ball is still rolling through, and the same ball cannot be counted
+    // twice.
+    setBeamInterrupts(false);
+    vTaskDelay(pdMS_TO_TICKS(SENSOR_LOCKOUT_MS));
+    // Drop anything an in-flight ISR may have queued before the lockout.
+    xQueueReset(sensorQueue);
+    resyncBeams(blocked);
+    setBeamInterrupts(true);
   }
 }
 
