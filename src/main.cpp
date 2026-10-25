@@ -360,11 +360,20 @@ void setup()
   // --- Start Web Server & WebSockets ---
   ws.onEvent(onEvent);
   server.addHandler(&ws);
+  // Always send the page together with its length.  With only a const char*
+  // ESPAsyncWebServer copies the whole ~120 kB dashboard into a String on the
+  // heap (AsyncBasicResponse).  With the WiFi AP running the largest free heap
+  // block of an ESP32 is usually ~110 kB, so that allocation fails and the
+  // browser gets a 200 response with no body -> blank white page.  The length
+  // overload renders an AsyncProgmemResponse instead, which streams the page
+  // in small chunks straight from flash and does no large allocation.
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(200, "text/html", index_html); });
+            { request->send(200, "text/html", (const uint8_t *)index_html,
+                            sizeof(index_html) - 1); });
   // Same dashboard, but with TV mode enabled (?tv=1 also works).
   server.on("/tv", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(200, "text/html", index_html); });
+            { request->send(200, "text/html", (const uint8_t *)index_html,
+                            sizeof(index_html) - 1); });
   server.begin();
   Serial.println("Web Server started");
 
