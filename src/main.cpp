@@ -19,15 +19,18 @@ const char *password = "Kennwort1!"; // Hotspot Password (min 8 chars)
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-#define dirPinStepper 21
-#define enablePinStepper 17
-#define stepPinStepper 16
+#define dirPinStepper 18
+#define enablePinStepper 19
+#define stepPinStepper 21
+
+#define LED_1 16
+#define LED_2 17
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper = NULL;
 
 #define NUM_LEDS 10
-#define RESET_BUTTON_PIN 33
+#define RESET_BUTTON_PIN 23
 #define CELEBRATE_FRAME_MS 40
 
 // ─────────────────────────────────────────────
@@ -46,15 +49,15 @@ FastAccelStepper *stepper = NULL;
 // The ball is in a closed chute, so a single beam is enough.  A valid goal is
 // a beam occlusion between MIN_BLOCK_US and MAX_BLOCK_US.  Everything shorter
 // is noise/dirt, everything longer is a stuck ball or a broken sensor.
-#define SENSOR1_PIN 27
-#define SENSOR2_PIN 32
+#define SENSOR1_PIN 4
+#define SENSOR2_PIN 22
 
 #define MIN_BLOCK_US 2000UL        // 2 ms
-#define MAX_BLOCK_US 500000UL      // 500 ms
+#define MAX_BLOCK_US 5000000UL     // 500 ms
 #define GOAL_COOLDOWN_US 1500000UL // 1.5 s per side
 
 // Set to 1 to print every beam edge / duration to Serial.
-#define DEBUG_SENSORS 0
+#define DEBUG_SENSORS 1
 
 CRGB goals1[NUM_LEDS] = {};
 CRGB goals2[NUM_LEDS] = {};
@@ -288,13 +291,13 @@ void setupSensors()
   attachInterrupt(digitalPinToInterrupt(SENSOR2_PIN), isrGoal2, CHANGE);
 
   xTaskCreatePinnedToCore(
-      sensorTask,   // Function
-      "Sensors",    // Name
-      4096,         // Stack size in words
-      NULL,         // Parameter
-      6,            // Priority
-      NULL,         // Handle
-      1             // Core 1
+      sensorTask, // Function
+      "Sensors",  // Name
+      4096,       // Stack size in words
+      NULL,       // Parameter
+      6,          // Priority
+      NULL,       // Handle
+      1           // Core 1
   );
 }
 
@@ -344,8 +347,8 @@ void setup()
   server.begin();
   Serial.println("Web Server started");
 
-  FastLED.addLeds<WS2812B, 26, GRB>(goals1, NUM_LEDS);
-  FastLED.addLeds<WS2812B, 25, GRB>(goals2, NUM_LEDS);
+  FastLED.addLeds<WS2812B, LED_1, GRB>(goals1, NUM_LEDS);
+  FastLED.addLeds<WS2812B, LED_2, GRB>(goals2, NUM_LEDS);
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
   FastLED.show();
 
