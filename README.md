@@ -1,6 +1,6 @@
-# Drehfussball — automatischer Tischkicker
+# TourneyMaster - Drehfußballtisch-Tore-Zähler
 
-ESP32-gesteuerter Drehfußball-Tisch mit automatischer Torerkennung, LED-Anzeige
+### ESP32-gesteuerter Drehfußball-Tisch mit automatischer Torerkennung, LED-Anzeige
 und Web-Turnierdashboard.
 
 ## Schnellstart
