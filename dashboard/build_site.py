@@ -44,9 +44,11 @@ def build(verbose: bool = True) -> int:
 
     cpp = (
         '#include <Arduino.h>\n\n'
+        '#include "site.h"\n\n'
         'const char index_html[] PROGMEM = R"rawliteral(\n'
         f"{html}\n"
-        ')rawliteral";\n'
+        ')rawliteral";\n\n'
+        'const size_t index_html_len = sizeof(index_html) - 1;\n'
     )
     SRC_CPP.write_text(cpp, encoding="utf-8")
 

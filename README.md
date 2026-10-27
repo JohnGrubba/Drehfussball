@@ -40,7 +40,7 @@ Details: [dashboard/README.md](dashboard/README.md)
 pio run -t upload
 ```
 
-- Firmware: `src/main.cpp`
+- Firmware: `src/` (Einstieg: `src/main.cpp`)
 - Nach Dashboard-Änderungen: `python3 dashboard/build_site.py` (schreibt
   `src/site.cpp`), dann flashen.
 - Partition: `huge_app.csv` (3 MB App, 1 MB SPIFFS), weil die Firmware inkl.
@@ -59,7 +59,13 @@ pio run -t upload
 
 | Pfad | Inhalt |
 |---|---|
-| `src/main.cpp` | ESP32-Firmware (IR-Tore, LEDs, Stepper, WebSocket) |
+| `src/main.cpp` | Firmware-Einstieg (`setup()` / `loop()`) |
+| `src/config.h` | Pins, Wi-Fi-Zugang, Zeit- und Debug-Konstanten |
+| `src/game_state.*` | Spielstand sowie Tor-/Reset-Events zwischen Tasks |
+| `src/sensors.*` | IR-Lichtschranken, ISR-Queue und Tor-Lockout |
+| `src/leds.*` | LED-Spielstandsanzeige und Animationen |
+| `src/stepper.*` | Ballrückgabe über den Schrittmotor |
+| `src/webserver.*` | WLAN-Access-Point, HTTP- und WebSocket-Server |
 | `src/site.cpp` | Generiertes Dashboard-HTML für den ESP32 |
 | `dashboard/` | Dashboard-Quelle, lokaler Server, Screenshots |
 | `hardware/` | KiCad-PCB, Gerber, BOM, Hardware-Doku |

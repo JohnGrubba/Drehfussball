@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include "site.h"
+
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="de">
@@ -3668,3 +3670,5 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none !important;
 </html>
 
 )rawliteral";
+
+const size_t index_html_len = sizeof(index_html) - 1;
