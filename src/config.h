@@ -26,11 +26,18 @@ constexpr uint8_t LED_PIN_TEAM1 = 16;
 constexpr uint8_t LED_PIN_TEAM2 = 17;
 constexpr uint8_t NUM_LEDS = 10;
 constexpr uint32_t CELEBRATE_FRAME_MS = 40;
+constexpr uint32_t STARTUP_FRAME_MS = 25;
+
+// A FastLED.show() call that cannot get the LED mutex within this window is
+// dropped instead of blocking the caller forever.
+constexpr uint32_t LED_MUTEX_TIMEOUT_MS = 100;
 
 // ─────────────────────────────────────────────
 // Reset button
 // ─────────────────────────────────────────────
 constexpr uint8_t RESET_BUTTON_PIN = 23;
+// The button is edge triggered, so holding it can never start a reset twice.
+constexpr uint32_t RESET_BUTTON_DEBOUNCE_MS = 50;
 
 // ─────────────────────────────────────────────
 // IR light barriers (PCB v1.0)

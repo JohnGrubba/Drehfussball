@@ -24,6 +24,7 @@ ESP32 foosball-table firmware (PlatformIO/Arduino, C++) in `src/`, plus a no-bui
 - Sensor flow: GPIO ISR → FreeRTOS queue → `sensorTask` → `reportGoal()`; `loop()` consumes the flag, updates score/LEDs and celebrates. After a goal both beam interrupts are disabled for 1 s, then beam states are re-synced.
 - The 74HC14 inverts the beams: GPIO HIGH means beam blocked.
 - WebSocket callbacks run in the async web-server task, while animations run in `loop()`. All `FastLED.show()` calls must go through `showLeds()` in `leds.cpp` (mutex); shared state must stay atomic in `game_state.cpp`. Do not add bare `FastLED.show()` or unsynchronised globals.
+- Animations are non-blocking state machines advanced by `ledsTick()` from `loop()`; the web task only calls `requestLedUpdate()`. Never `delay()` for animation or ball-return timing — a blocked `loop()` leaves the strips stuck on one frame and can end in a watchdog reset. Always end an animation on `drawScore()` so the strips cannot stay on a transient frame.
 - WebSocket protocol: text commands `t1_add`, `t1_sub`, `t2_add`, `t2_sub`, `reset`; broadcasts are `{"team1":N,"team2":N}`. It is implemented twice — `src/webserver.cpp` and the mock in `dashboard/server.py` — keep both in sync.
 
 ## Dashboard

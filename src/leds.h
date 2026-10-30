@@ -5,11 +5,20 @@
 // Initialise the two LED strips.  Must be called before the animations below.
 void setupLeds();
 
-// Show the current score on both strips.
+// Draw the current score on both strips once (blocking, single frame).
 void updateLedScores();
 
-// Flash the strip of the scoring team and return to the score display.
+// Ask loop() to redraw the score.  Safe to call from any task, e.g. from the
+// web server, because only loop() ever talks to FastLED.
+void requestLedUpdate();
+
+// Advance the running animation.  Must be called once per loop() iteration.
+void ledsTick();
+
+// Start the celebration animation for the scoring team.  Returns immediately;
+// the frames are drawn by ledsTick().
 void playCelebration(Team team);
 
-// Green sweep shown at startup and after a reset.
+// Start the green sweep shown at startup and after a reset.  Returns
+// immediately; the frames are drawn by ledsTick().
 void playStartupAnimation();

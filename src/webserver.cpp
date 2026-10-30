@@ -30,7 +30,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   }
 
   data[len] = 0;
-  String message = (char *)data;
+  // Length-aware: never relies on the byte past the frame buffer.
+  const String message((const char *)data, len);
 
   if (message == "t1_add")
     addGoal(TEAM_BLUE);
@@ -47,7 +48,9 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   }
   else
   {
-    updateLedScores();
+    // Only loop() may talk to FastLED; this task just marks the score dirty
+    // and loop() redraws it on its next iteration.
+    requestLedUpdate();
     notifyClients();
   }
 }
